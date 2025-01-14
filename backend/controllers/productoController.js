@@ -112,6 +112,81 @@ const productoController = {
       console.error('Error al crear producto:', error);
       res.status(500).json({ message: 'Error en el servidor' });
     }
+  },
+
+  // Actualizar producto
+  updateProducto: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const {
+        nombre,
+        descripcion,
+        categoria_id,
+        marca_id,
+        precio_l1,
+        precio_l2,
+        precio_l3,
+        precio_l4,
+        stock,
+        codigo_sku,
+        colores
+      } = req.body;
+
+      const producto = await Producto.findByPk(id);
+      
+      if (!producto) {
+        return res.status(404).json({ message: 'Producto no encontrado' });
+      }
+
+      let imagen_url = producto.imagen_url;
+      if (req.file) {
+        imagen_url = await uploadImage(req.file, 'products');
+      }
+
+      await producto.update({
+        nombre,
+        descripcion,
+        categoria_id,
+        marca_id,
+        precio_l1,
+        precio_l2,
+        precio_l3,
+        precio_l4,
+        stock,
+        codigo_sku,
+        imagen_url
+      });
+
+      if (colores) {
+        // Eliminar colores anteriores
+        await ColorProducto.destroy({
+          where: { producto_id: id }
+        });
+
+        // Crear nuevos colores
+        if (colores.length > 0) {
+          await ColorProducto.bulkCreate(
+            colores.map(color => ({
+              producto_id: id,
+              ...color
+            }))
+          );
+        }
+      }
+
+      const productoActualizado = await Producto.findByPk(id, {
+        include: [
+          { model: Categoria },
+          { model: Marca },
+          { model: ColorProducto }
+        ]
+      });
+
+      res.json(productoActualizado);
+    } catch (error) {
+      console.error('Error al actualizar producto:', error);
+      res.status(500).json({ message: 'Error al actualizar el producto' });
+    }
   }
 };
 

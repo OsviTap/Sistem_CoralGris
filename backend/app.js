@@ -4,20 +4,27 @@ require('dotenv').config();
 
 const routes = require('./routes');
 const errorHandler = require('./middleware/errorHandler');
-const { handleMulterError } = require('./middleware/upload');
 
 const app = express();
 
-// Middlewares globales
+// Middlewares
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Rutas
+// Ruta de bienvenida
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Bienvenido a la API de Librería',
+    status: 'online',
+    version: '1.0.0'
+  });
+});
+
+// Rutas API
 app.use('/api', routes);
 
 // Manejo de errores
-app.use(handleMulterError);
 app.use(errorHandler);
 
 // Manejo de rutas no encontradas
@@ -25,10 +32,10 @@ app.use((req, res) => {
   res.status(404).json({ message: 'Ruta no encontrada' });
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3006;
 
 app.listen(PORT, () => {
-  console.log(`Servidor corriendo en el puerto ${PORT}`);
+  console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
 });
 
 module.exports = app;
