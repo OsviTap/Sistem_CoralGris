@@ -1,5 +1,5 @@
 const { Producto, Categoria, Marca, ColorProducto } = require('../models');
-const { uploadImage } = require('../utils/storage');
+const supabase = require('../config/supabase');
 
 const productoController = {
   // Obtener productos con filtros y paginación
@@ -72,10 +72,32 @@ const productoController = {
       } = req.body;
 
       let imagen_url = null;
+
+      // Subir imagen a Supabase si existe
       if (req.file) {
-        imagen_url = await uploadImage(req.file, 'products');
+        const file = req.file;
+        const filePath = `productos/${Date.now()}-${file.originalname.replace(/\s+/g, '_')}`;
+
+        const { data: uploadData, error: uploadError } = await supabase
+          .storage
+          .from('libreria-images')
+          .upload(filePath, file.buffer, {
+            contentType: file.mimetype,
+            cacheControl: '3600'
+          });
+
+        if (uploadError) throw uploadError;
+
+        // Obtener URL pública
+        const { data: { publicUrl } } = supabase
+          .storage
+          .from('libreria-images')
+          .getPublicUrl(filePath);
+
+        imagen_url = publicUrl;
       }
 
+      // Crear producto en la base de datos
       const producto = await Producto.create({
         nombre,
         descripcion,
@@ -110,7 +132,10 @@ const productoController = {
       res.status(201).json(productoCreado);
     } catch (error) {
       console.error('Error al crear producto:', error);
-      res.status(500).json({ message: 'Error en el servidor' });
+      res.status(500).json({
+        message: 'Error al crear el producto',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
+      });
     }
   },
 
@@ -140,7 +165,7 @@ const productoController = {
 
       let imagen_url = producto.imagen_url;
       if (req.file) {
-        imagen_url = await uploadImage(req.file, 'products');
+        imagen_url = await uploadImage(req.file, 'productos');
       }
 
       await producto.update({

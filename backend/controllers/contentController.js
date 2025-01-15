@@ -1,5 +1,5 @@
 const { ContenidoLandingPage } = require('../models');
-const { uploadImage, deleteImage } = require('../utils/storage');
+const supabase = require('../config/supabase');
 
 const contentController = {
   // Obtener contenido del landing page
@@ -40,8 +40,30 @@ const contentController = {
       } = req.body;
 
       let imagen_url = null;
+
+      // Subir imagen a Supabase si existe
       if (req.file) {
-        imagen_url = await uploadImage(req.file, 'content');
+        const file = req.file;
+        // Crear ruta para carousel: libreria-images/carousel/nombre-archivo
+        const filePath = `carousel/${Date.now()}-${file.originalname.replace(/\s+/g, '_')}`;
+
+        const { data: uploadData, error: uploadError } = await supabase
+          .storage
+          .from('libreria-images')
+          .upload(filePath, file.buffer, {
+            contentType: file.mimetype,
+            cacheControl: '3600'
+          });
+
+        if (uploadError) throw uploadError;
+
+        // Obtener URL pública
+        const { data: { publicUrl } } = supabase
+          .storage
+          .from('libreria-images')
+          .getPublicUrl(filePath);
+
+        imagen_url = publicUrl;
       }
 
       const nuevoContenido = await ContenidoLandingPage.create({
@@ -58,7 +80,10 @@ const contentController = {
       res.status(201).json(nuevoContenido);
     } catch (error) {
       console.error('Error al crear contenido:', error);
-      res.status(500).json({ message: 'Error en el servidor' });
+      res.status(500).json({ 
+        message: 'Error en el servidor',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
+      });
     }
   },
 
@@ -82,11 +107,43 @@ const contentController = {
       }
 
       let imagen_url = contenidoExistente.imagen_url;
+
+      // Si hay una nueva imagen, eliminar la anterior y subir la nueva
       if (req.file) {
+        // Si existe una imagen anterior, eliminarla de Supabase
         if (imagen_url) {
-          await deleteImage(imagen_url);
+          const oldPath = imagen_url.split('/').slice(-2).join('/'); // Obtiene 'carousel/nombre-archivo'
+          const { error: deleteError } = await supabase
+            .storage
+            .from('libreria-images')
+            .remove([oldPath]);
+
+          if (deleteError) {
+            console.error('Error al eliminar imagen anterior:', deleteError);
+          }
         }
-        imagen_url = await uploadImage(req.file, 'content');
+
+        // Subir nueva imagen
+        const file = req.file;
+        const filePath = `carousel/${Date.now()}-${file.originalname.replace(/\s+/g, '_')}`;
+
+        const { data: uploadData, error: uploadError } = await supabase
+          .storage
+          .from('libreria-images')
+          .upload(filePath, file.buffer, {
+            contentType: file.mimetype,
+            cacheControl: '3600'
+          });
+
+        if (uploadError) throw uploadError;
+
+        // Obtener nueva URL pública
+        const { data: { publicUrl } } = supabase
+          .storage
+          .from('libreria-images')
+          .getPublicUrl(filePath);
+
+        imagen_url = publicUrl;
       }
 
       await contenidoExistente.update({
@@ -103,7 +160,10 @@ const contentController = {
       res.json(contenidoExistente);
     } catch (error) {
       console.error('Error al actualizar contenido:', error);
-      res.status(500).json({ message: 'Error en el servidor' });
+      res.status(500).json({ 
+        message: 'Error en el servidor',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
+      });
     }
   },
 
@@ -117,8 +177,17 @@ const contentController = {
         return res.status(404).json({ message: 'Contenido no encontrado' });
       }
 
+      // Si hay imagen, eliminarla de Supabase
       if (contenido.imagen_url) {
-        await deleteImage(contenido.imagen_url);
+        const filePath = contenido.imagen_url.split('/').slice(-2).join('/'); // Obtiene 'carousel/nombre-archivo'
+        const { error: deleteError } = await supabase
+          .storage
+          .from('libreria-images')
+          .remove([filePath]);
+
+        if (deleteError) {
+          console.error('Error al eliminar imagen:', deleteError);
+        }
       }
 
       await contenido.destroy();
@@ -126,7 +195,10 @@ const contentController = {
       res.json({ message: 'Contenido eliminado exitosamente' });
     } catch (error) {
       console.error('Error al eliminar contenido:', error);
-      res.status(500).json({ message: 'Error en el servidor' });
+      res.status(500).json({ 
+        message: 'Error en el servidor',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
+      });
     }
   }
 };
