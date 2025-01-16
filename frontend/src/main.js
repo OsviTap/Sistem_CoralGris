@@ -1,4 +1,6 @@
 import './assets/main.css'
+import "preline/preline";
+import './assets/style.css'
 
 import { createApp } from 'vue'
 import App from './App.vue'
