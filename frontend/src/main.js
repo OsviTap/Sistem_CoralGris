@@ -1,4 +1,3 @@
-import './assets/main.css'
 import "preline/preline";
 import './assets/style.css'
 
