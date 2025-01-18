@@ -1,11 +1,13 @@
 <template>
     <div class="w-full min-h-screen">
       <RouterView class="w-full" />
+      <WhatsAppButton />
     </div>
 </template>
 
 <script setup>
 import { RouterView } from 'vue-router'
+import WhatsAppButton from '@/components/landing/WhatsAppButton.vue'
 </script>
 
 <style>
