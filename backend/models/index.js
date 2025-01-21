@@ -30,7 +30,8 @@ Pedido.belongsTo(Sucursal, { foreignKey: 'sucursal_id' });
 Mensaje.belongsTo(Usuario, { foreignKey: 'emisor_id', as: 'Emisor' });
 Mensaje.belongsTo(Usuario, { foreignKey: 'receptor_id', as: 'Receptor' });
 
-// Asociaciones de Subcategoria
+// Asociaciones de Categoria y Subcategoria
+Categoria.hasMany(Subcategoria, { foreignKey: 'categoria_id', as: 'subcategorias' });
 Subcategoria.belongsTo(Categoria, { foreignKey: 'categoria_id' });
 
 // Asociaciones de DetallePedido

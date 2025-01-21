@@ -5,17 +5,23 @@ const categoriaController = {
   getCategorias: async (req, res) => {
     try {
       const categorias = await Categoria.findAll({
-        include: [{ model: Subcategoria }],
+        include: [{
+          model: Subcategoria,
+          as: 'subcategorias'
+        }],
         order: [
           ['nombre', 'ASC'],
-          [Subcategoria, 'nombre', 'ASC']
+          [{ model: Subcategoria, as: 'subcategorias' }, 'nombre', 'ASC']
         ]
       });
 
       res.json(categorias);
     } catch (error) {
       console.error('Error al obtener categorías:', error);
-      res.status(500).json({ message: 'Error en el servidor' });
+      res.status(500).json({ 
+        message: 'Error en el servidor',
+        error: error.message 
+      });
     }
   },
 
