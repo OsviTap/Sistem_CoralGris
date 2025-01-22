@@ -17,10 +17,15 @@
       <!-- Categorías -->
       <CategoryCards />
 
-      <!-- Resto del contenido -->
+      <!-- Título de subcategorías -->
       <div class="w-full mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <!-- Aquí irá el resto del contenido -->
+        <h1 class="text-3xl font-bold text-gray-800 dark:text-gray-800">
+          Explora todos nuestros productos.
+        </h1>
       </div>
+
+      <!-- Subcategorías -->
+      <SubcategoryCards />
     </main>
 
     <Footer />
@@ -32,4 +37,5 @@ import Navbar from '@/components/landing/Navbar.vue'
 import Footer from '@/components/landing/Footer.vue'
 import MainCarousel from '@/components/landing/MainCarousel.vue'
 import CategoryCards from '@/components/landing/CategoryCards.vue'
+import SubcategoryCards from '@/components/landing/SubcategoryCards.vue'
 </script>
