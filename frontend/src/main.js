@@ -1,5 +1,10 @@
 import "preline/preline";
 import './assets/style.css'
+import 'swiper/css';
+import 'swiper/css/pagination';
+import 'swiper/css/navigation';
+import 'swiper/css/effect-fade';
+
 
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
