@@ -1,5 +1,6 @@
 <template>
-  <header class="flex flex-col z-50 w-full bg-white text-sm dark:bg-gray-800 rounded-b-lg shadow-[0_4px_0_0_#82FFFF,0_8px_0_0_#FC30E7] relative after:content-[''] after:absolute after:left-0 after:bottom-[-9px] after:w-full after:h-[3px] after:bg-[#FC30E7] after:blur-[1px] before:content-[''] before:absolute before:left-0 before:bottom-[-5px] before:w-full before:h-[3px] before:bg-[#82FFFF] before:blur-[1px]">
+  <header class="sticky top-0 flex flex-col z-50 w-full bg-white text-sm dark:bg-gray-800 rounded-b-lg shadow-[0_4px_0_0_#82FFFF,0_8px_0_0_#FC30E7] relative after:content-[''] after:absolute after:left-0 after:bottom-[-9px] after:w-full after:h-[3px] after:bg-[#FC30E7] after:blur-[1px] before:content-[''] before:absolute before:left-0 before:bottom-[-5px] before:w-full before:h-[3px] before:bg-[#82FFFF] before:blur-[1px]"
+        data-hs-header="true">
     <div class="relative max-w-[85rem] mx-auto w-full">
       <!-- Logo y Nombre - Posicionado a la izquierda entre las dos filas -->
       <div class="hidden lg:block absolute left-4 top-1/2 -translate-y-1/2 z-50">
@@ -269,14 +270,23 @@ const closeMobileSearch = () => {
 }
 
 onMounted(async () => {
-  // Inicializar componentes de Preline
-  HSDropdown.autoInit()
-  
-  // Cargar categorías y marcas
+  // Primero cargar los datos
   await Promise.all([
     categoriaStore.fetchCategorias(),
     marcaStore.fetchMarcas()
   ])
+
+  // Luego inicializar los componentes de Preline
+  HSHeader.autoInit()
+  
+  // Configurar el dropdown
+  HSDropdown.autoInit({
+    delay: {
+      show: 0,
+      hide: 300
+    },
+    transitionOnce: true
+  })
 
   // Manejador de clics fuera del buscador
   document.addEventListener('click', (event) => {
@@ -311,7 +321,8 @@ onMounted(async () => {
   transform: translateX(-50%) !important;
   z-index: 1000 !important;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
-  margin-top: 2.5rem !important;
+  margin-top: 3rem !important;
+  transition-duration: 1000ms !important;
 }
 
 /* Pantallas grandes (lg y superiores) */
@@ -360,5 +371,22 @@ onMounted(async () => {
 .mobile-search-leave-to {
   opacity: 0;
   transform: translateY(-10px);
+}
+
+/* Añadir transición suave al scroll */
+.sticky {
+  transition: all 0.3s ease-in-out;
+}
+
+/* Estilo cuando el header está scrolleado */
+.hs-header-scrolled {
+  box-shadow: 0 4px 0 0 #82FFFF, 0 8px 0 0 #FC30E7, 0 1px 10px rgba(0,0,0,0.1);
+  backdrop-filter: blur(8px);
+  background-color: rgba(255, 255, 255, 0.95);
+}
+
+/* Versión dark mode */
+.dark .hs-header-scrolled {
+  background-color: rgba(31, 41, 55, 0.95);
 }
 </style>
