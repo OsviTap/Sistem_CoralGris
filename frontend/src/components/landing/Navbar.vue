@@ -5,10 +5,12 @@
       <!-- Logo y Nombre - Posicionado a la izquierda entre las dos filas -->
       <div class="hidden lg:block absolute left-4 top-1/2 -translate-y-1/2 z-50">
         <div class="flex items-center gap-2">
-          <img src="../../assets/images/logo.png" alt="Logo" class="w-15 h-12">
-          <a class="flex-none text-4xl font-spirax" href="#">
-            <span class="text-[#CF33D1]">Coral</span><span class="text-[#929292]">Gris</span>
-          </a>
+          <router-link to="/" class="flex items-center gap-2">
+            <img src="../../assets/images/logo.png" alt="Logo" class="w-15 h-12">
+            <span class="flex-none text-4xl font-spirax">
+              <span class="text-[#CF33D1]">Coral</span><span class="text-[#929292]">Gris</span>
+            </span>
+          </router-link>
         </div>
       </div>
 
@@ -123,8 +125,18 @@
                 </div>
               </div>
 
-              <a class="font-medium text-gray-600 hover:text-[#CF33D1] dark:text-gray-400 dark:hover:text-[#CF33D1] px-4 py-2 rounded-full transition-all duration-300 hover:shadow-[0_0_10px_#CF33D1] hover:border hover:border-[#CF33D1]" href="#">Nosotros</a>
-              <a class="font-medium text-gray-600 hover:text-[#CF33D1] dark:text-gray-400 dark:hover:text-[#CF33D1] px-4 py-2 rounded-full transition-all duration-300 hover:shadow-[0_0_10px_#CF33D1] hover:border hover:border-[#CF33D1]" href="#">Contacto</a>
+              <router-link 
+                to="/nosotros" 
+                class="font-medium text-gray-600 hover:text-[#CF33D1] dark:text-gray-400 dark:hover:text-[#CF33D1] px-4 py-2 rounded-full transition-all duration-300 hover:shadow-[0_0_10px_#CF33D1] hover:border hover:border-[#CF33D1]"
+              >
+                Nosotros
+              </router-link>
+              <router-link 
+                to="/contacto" 
+                class="font-medium text-gray-600 hover:text-[#CF33D1] dark:text-gray-400 dark:hover:text-[#CF33D1] px-4 py-2 rounded-full transition-all duration-300 hover:shadow-[0_0_10px_#CF33D1] hover:border hover:border-[#CF33D1]"
+              >
+                Contacto
+              </router-link>
               <a class="font-medium text-gray-600 hover:text-[#CF33D1] dark:text-gray-400 dark:hover:text-[#CF33D1] px-4 py-2 rounded-full transition-all duration-300 hover:shadow-[0_0_10px_#CF33D1] hover:border hover:border-[#CF33D1]" href="#">Registra tu negocio o empresa</a>
             </div>
           </div>
@@ -137,10 +149,12 @@
           <div class="flex items-center justify-between gap-4">
             <!-- Logo y Nombre - Solo visible en móvil y tablet -->
             <div class="flex items-center gap-2 flex-shrink-0 lg:hidden">
-              <img src="../../assets/images/logo.png" alt="Logo" class="w-15 h-12">
-              <a class="flex-none text-2xl font-spirax" href="#">
-                <span class="text-[#CF33D1]">Coral</span><span class="text-[#929292]">Gris</span>
-              </a>
+              <router-link to="/" class="flex items-center gap-2">
+                <img src="../../assets/images/logo.png" alt="Logo" class="w-15 h-12">
+                <span class="flex-none text-2xl font-spirax">
+                  <span class="text-[#CF33D1]">Coral</span><span class="text-[#929292]">Gris</span>
+                </span>
+              </router-link>
             </div>
 
             <!-- Buscador e iconos -->
@@ -235,8 +249,18 @@
             <div class="flex flex-col gap-4">
               <a class="font-medium text-gray-600 hover:text-[#CF33D1]" href="#">Categorías</a>
               <a class="font-medium text-gray-600 hover:text-[#CF33D1]" href="#">Marcas</a>
-              <a class="font-medium text-gray-600 hover:text-[#CF33D1]" href="#">Nosotros</a>
-              <a class="font-medium text-gray-600 hover:text-[#CF33D1]" href="#">Contacto</a>
+              <router-link 
+                to="/nosotros" 
+                class="font-medium text-gray-600 hover:text-[#CF33D1]"
+              >
+                Nosotros
+              </router-link>
+              <router-link 
+                to="/contacto" 
+                class="font-medium text-gray-600 hover:text-[#CF33D1]"
+              >
+                Contacto
+              </router-link>
               <a class="font-medium text-gray-600 hover:text-[#CF33D1]" href="#">Registra tu negocio o empresa</a>
             </div>
           </div>
