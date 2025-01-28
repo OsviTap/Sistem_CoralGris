@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import Navbar from '@/components/landing/Navbar.vue'
 import Footer from '@/components/landing/Footer.vue'
+import axios from 'axios'
 
 const formData = ref({
   nombre: '',
@@ -13,24 +14,15 @@ const formData = ref({
 
 const isSubmitting = ref(false)
 const showSuccess = ref(false)
+const errorMessage = ref('')
 
 const handleSubmit = async () => {
   isSubmitting.value = true
+  errorMessage.value = ''
   
   try {
-    // Construir el mensaje para WhatsApp
-    const message = `*Nueva Consulta de Cliente*%0A%0A` +
-      `*Nombre:* ${formData.value.nombre}%0A` +
-      `*Email:* ${formData.value.email}%0A` +
-      `*Teléfono:* ${formData.value.telefono}%0A` +
-      `*Asunto:* ${formData.value.asunto}%0A` +
-      `*Mensaje:* ${formData.value.mensaje}`
-
-    // Número de WhatsApp corporativo
-    const whatsappNumber = '+59167515583' // Reemplazar con el número real
-    
-    // Abrir WhatsApp con el mensaje pre-llenado
-    window.open(`https://wa.me/${whatsappNumber}?text=${message}`, '_blank')
+    // Enviar datos al backend
+    await axios.post('/api/consultas', formData.value)
     
     // Mostrar mensaje de éxito
     showSuccess.value = true
@@ -45,13 +37,16 @@ const handleSubmit = async () => {
     }
   } catch (error) {
     console.error('Error al enviar el formulario:', error)
+    errorMessage.value = 'Hubo un error al enviar tu consulta. Por favor, intenta nuevamente.'
   } finally {
     isSubmitting.value = false
     
     // Ocultar mensaje de éxito después de 3 segundos
-    setTimeout(() => {
-      showSuccess.value = false
-    }, 3000)
+    if (showSuccess.value) {
+      setTimeout(() => {
+        showSuccess.value = false
+      }, 3000)
+    }
   }
 }
 </script>
@@ -85,6 +80,14 @@ const handleSubmit = async () => {
                role="alert">
             <p class="font-bold">¡Mensaje enviado!</p>
             <p>Nos pondremos en contacto contigo pronto.</p>
+          </div>
+
+          <!-- Mensaje de error -->
+          <div v-if="errorMessage" 
+               class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4"
+               role="alert">
+            <p class="font-bold">Error</p>
+            <p>{{ errorMessage }}</p>
           </div>
 
           <form @submit.prevent="handleSubmit" class="p-8 space-y-8">

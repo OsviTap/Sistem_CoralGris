@@ -1,10 +1,12 @@
 const { Producto, Categoria, Marca, ColorProducto } = require('../models');
 const supabase = require('../config/supabase');
+const { Op } = require('sequelize');
 
 const productoController = {
   // Obtener productos con filtros y paginación
   getProductos: async (req, res) => {
     try {
+      console.log('Iniciando getProductos...'); // Debug log
       const {
         page = 1,
         limit = 12,
@@ -13,6 +15,8 @@ const productoController = {
         search,
         orden
       } = req.query;
+
+      console.log('Parámetros recibidos:', { page, limit, categoria_id, marca_id, search, orden }); // Debug log
 
       const offset = (page - 1) * limit;
       const where = {};
@@ -30,17 +34,37 @@ const productoController = {
       if (orden === 'precio_asc') order = [['precio_l1', 'ASC']];
       if (orden === 'precio_desc') order = [['precio_l1', 'DESC']];
 
+      console.log('Consulta a realizar:', { where, order, limit, offset }); // Debug log
+
       const { count, rows } = await Producto.findAndCountAll({
         where,
         include: [
-          { model: Categoria },
-          { model: Marca },
-          { model: ColorProducto }
+          { 
+            model: Categoria,
+            as: 'categoria',
+            required: false
+          },
+          { 
+            model: Marca,
+            as: 'marca',
+            required: false
+          },
+          { 
+            model: ColorProducto,
+            as: 'colores',
+            required: false
+          }
         ],
         order,
-        limit,
-        offset
+        limit: parseInt(limit),
+        offset: parseInt(offset),
+        distinct: true // Para evitar duplicados por los joins
       });
+
+      console.log(`Productos encontrados: ${count}`); // Debug log
+      if (rows.length > 0) {
+        console.log('Primer producto:', rows[0].toJSON()); // Debug log del primer producto
+      }
 
       res.json({
         productos: rows,
@@ -49,8 +73,11 @@ const productoController = {
         pagina_actual: parseInt(page)
       });
     } catch (error) {
-      console.error('Error al obtener productos:', error);
-      res.status(500).json({ message: 'Error en el servidor' });
+      console.error('Error detallado en getProductos:', error);
+      res.status(500).json({ 
+        message: 'Error en el servidor',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
   },
 

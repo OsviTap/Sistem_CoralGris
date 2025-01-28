@@ -51,7 +51,7 @@
                 </div>
               </div>
 
-              <!-- Dropdown Marcas -->
+              <!-- Dropdown de Marcas -->
               <div class="hs-dropdown [--trigger:hover] relative inline-flex">
                 <button type="button" 
                         class="hs-dropdown-toggle font-medium text-gray-600 hover:text-[#CF33D1] dark:text-gray-400 dark:hover:text-[#CF33D1] px-4 py-2 rounded-full transition-all duration-300 hover:shadow-[0_0_10px_#CF33D1] hover:border hover:border-[#CF33D1] inline-flex justify-center items-center gap-2">
@@ -137,7 +137,12 @@
               >
                 Contacto
               </router-link>
-              <a class="font-medium text-gray-600 hover:text-[#CF33D1] dark:text-gray-400 dark:hover:text-[#CF33D1] px-4 py-2 rounded-full transition-all duration-300 hover:shadow-[0_0_10px_#CF33D1] hover:border hover:border-[#CF33D1]" href="#">Registra tu negocio o empresa</a>
+              <router-link 
+                to="/registrar-negocio" 
+                class="font-medium text-gray-600 hover:text-[#CF33D1] dark:text-gray-400 dark:hover:text-[#CF33D1] px-4 py-2 rounded-full transition-all duration-300 hover:shadow-[0_0_10px_#CF33D1] hover:border hover:border-[#CF33D1]"
+              >
+                Registra tu negocio o empresa
+              </router-link>
             </div>
           </div>
         </div>
@@ -261,25 +266,39 @@
               >
                 Contacto
               </router-link>
-              <a class="font-medium text-gray-600 hover:text-[#CF33D1]" href="#">Registra tu negocio o empresa</a>
+              <router-link 
+                to="/registrar-negocio" 
+                class="font-medium text-gray-600 hover:text-[#CF33D1]"
+              >
+                Registra tu negocio o empresa
+              </router-link>
             </div>
           </div>
         </div>
       </div>
     </div>
   </header>
+
+  <!-- <CartPanel /> -->
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, nextTick, computed } from 'vue'
 import { useCategoriaStore } from '@/stores/categoria'
 import { useMarcaStore } from '@/stores/marca'
+import { useCartStore } from '@/stores/cart'
+import { useAuthStore } from '@/stores/auth'
+import CartPanel from '../cart/CartPanel.vue'
 import 'preline'
 
 const showMobileSearch = ref(false)
 const searchInput = ref(null)
 const categoriaStore = useCategoriaStore()
 const marcaStore = useMarcaStore()
+const cartStore = useCartStore()
+const authStore = useAuthStore()
+const isOpen = ref(false)
+const isLoading = ref(true)
 
 const toggleMobileSearch = async () => {
   showMobileSearch.value = !showMobileSearch.value
@@ -293,24 +312,38 @@ const closeMobileSearch = () => {
   showMobileSearch.value = false
 }
 
-onMounted(async () => {
-  // Primero cargar los datos
-  await Promise.all([
-    categoriaStore.fetchCategorias(),
-    marcaStore.fetchMarcas()
-  ])
+const toggleMenu = () => {
+  isOpen.value = !isOpen.value
+}
 
-  // Luego inicializar los componentes de Preline
-  HSHeader.autoInit()
-  
-  // Configurar el dropdown
-  HSDropdown.autoInit({
-    delay: {
-      show: 0,
-      hide: 300
-    },
-    transitionOnce: true
-  })
+const totalItems = computed(() => cartStore.totalItems)
+
+// Computed property simplificada
+const categorias = computed(() => {
+  return categoriaStore.getCategorias || []
+})
+
+// Computed properties para marcas
+const marcasDestacadas = computed(() => marcaStore.marcasDestacadas || [])
+const marcasNoDestacadas = computed(() => marcaStore.marcasNoDestacadas || [])
+
+onMounted(async () => {
+  try {
+    await Promise.all([
+      categoriaStore.fetchCategorias(),
+      marcaStore.fetchMarcas()
+    ])
+
+    await nextTick(() => {
+      if (window.HSDropdown) {
+        window.HSDropdown.autoInit()
+      }
+    })
+  } catch (error) {
+    console.error('Error al cargar datos:', error)
+  } finally {
+    isLoading.value = false
+  }
 
   // Manejador de clics fuera del buscador
   document.addEventListener('click', (event) => {

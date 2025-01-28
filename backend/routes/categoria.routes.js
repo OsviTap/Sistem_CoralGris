@@ -4,7 +4,8 @@ const categoriaController = require('../controllers/categoriaController');
 const authMiddleware = require('../middleware/auth');
 const adminMiddleware = require('../middleware/adminCheck');
 
-// Rutas públicas
+// Ruta para obtener categorías con subcategorías
+router.get('/with-subcategories', categoriaController.getCategorias);
 router.get('/', categoriaController.getCategorias);
 
 // Rutas protegidas - solo admin
