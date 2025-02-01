@@ -16,7 +16,10 @@ export const useProductoStore = defineStore('producto', {
     },
     loading: false,
     itemsPorPagina: 12,
-    error: null
+    error: null,
+    productosRecomendados: [],
+    loadingRecomendados: false,
+    errorRecomendados: null
   }),
 
   actions: {
@@ -87,6 +90,33 @@ export const useProductoStore = defineStore('producto', {
       }
       this.paginaActual = 1
       this.fetchProductos()
+    },
+
+    async fetchProductosRecomendados({ categoriaId, marcaId, excludeId, limit = 8 }) {
+      this.loadingRecomendados = true
+      this.errorRecomendados = null
+      
+      try {
+        const response = await axios.get('/productos/recomendados', {
+          params: {
+            categoria_id: categoriaId,
+            marca_id: marcaId,
+            exclude_id: excludeId,
+            limit
+          }
+        })
+
+        if (response.data?.productos) {
+          return response.data.productos
+        }
+        return []
+      } catch (error) {
+        console.error('Error al cargar productos recomendados:', error)
+        this.errorRecomendados = 'Error al cargar los productos recomendados'
+        return []
+      } finally {
+        this.loadingRecomendados = false
+      }
     }
   }
 }) 

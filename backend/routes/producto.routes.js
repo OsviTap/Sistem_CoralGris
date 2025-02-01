@@ -7,6 +7,7 @@ const upload = require('../middleware/upload');
 
 // Rutas públicas
 router.get('/', productoController.getProductos);
+router.get('/recomendados', productoController.getProductosRecomendados);
 
 // Rutas protegidas - solo admin
 router.post('/', 

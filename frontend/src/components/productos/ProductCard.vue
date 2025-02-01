@@ -1,6 +1,8 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useCartStore } from '@/stores/cart'
+import { useAuthStore } from '@/stores/auth'
+import ProductosRecomendados from './ProductosRecomendados.vue'
 
 const props = defineProps({
   producto: {
@@ -18,18 +20,14 @@ const props = defineProps({
 })
 
 const cartStore = useCartStore()
+const authStore = useAuthStore()
 
-const precio = computed(() => {
-  switch (props.nivelPrecio) {
-    case 'L2':
-      return props.producto.precio_l2
-    case 'L3':
-      return props.producto.precio_l3
-    case 'L4':
-      return props.producto.precio_l4
-    default:
-      return props.producto.precio_l1
-  }
+const precioUnitario = computed(() => {
+  return authStore.isAuthenticated ? props.producto.precio_l3 : props.producto.precio_l1
+})
+
+const precioPorDocena = computed(() => {
+  return authStore.isAuthenticated ? props.producto.precio_l4 : props.producto.precio_l2
 })
 
 const formatPrice = (price) => {
@@ -43,86 +41,326 @@ const addToCart = () => {
   cartStore.addItem({
     id: props.producto.id,
     nombre: props.producto.nombre,
-    precio: precio.value,
+    precio: precioUnitario.value,
     imagen_url: props.producto.imagen_url,
     cantidad: 1
+  })
+}
+
+const showModal = ref(false)
+
+const openModal = () => {
+  showModal.value = true
+  document.body.style.overflow = 'hidden'
+}
+
+const closeModal = () => {
+  showModal.value = false
+  document.body.style.overflow = ''
+}
+
+const selectRecomendado = (productoSeleccionado) => {
+  // Actualizar el producto actual en el modal
+  producto.value = productoSeleccionado
+  // Scroll suave hacia arriba del modal
+  const modalContent = document.querySelector('.modal-content')
+  modalContent?.scrollTo({
+    top: 0,
+    behavior: 'smooth'
   })
 }
 </script>
 
 <template>
-  <div class="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 overflow-hidden">
+  <div 
+    class="bg-white rounded-lg shadow-md overflow-hidden transform transition-all duration-300 hover:shadow-xl hover:scale-[1.02] group"
+  >
     <!-- Imagen del producto -->
-    <div class="relative aspect-square overflow-hidden bg-gray-200">
+    <div class="relative aspect-square overflow-hidden">
       <img 
-        :src="producto.imagen_url || '/img/placeholder-producto.png'"
+        :src="producto.imagen_url" 
         :alt="producto.nombre"
-        class="w-full h-full object-cover object-center transform hover:scale-105 transition-transform duration-300"
+        class="w-full h-full object-cover object-center transform transition-transform duration-300 group-hover:scale-110"
       />
+      <!-- Badge de stock -->
       <div 
-        v-if="producto.stock <= 0"
-        class="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-full text-xs font-semibold"
+        v-if="producto.stock > 0" 
+        class="absolute top-2 left-2 bg-[#33c7d1] text-white text-xs font-medium px-2 py-1 rounded-full"
       >
-        Agotado
+        Stock disponible
+      </div>
+      <!-- Nuevo: Badge de precios mayoristas para usuarios autenticados -->
+      <div 
+        v-if="authStore.isAuthenticated" 
+        class="absolute top-2 right-2 bg-[#FF1F6D] text-white text-xs font-medium px-2 py-1 rounded-full flex items-center gap-1"
+      >
+        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+        </svg>
+        Precios mayoristas
       </div>
     </div>
 
     <!-- Información del producto -->
     <div class="p-4">
-      <!-- Categoría y marca -->
-      <div class="flex justify-between items-center text-sm text-gray-500 mb-2">
+      <!-- Categoría y Marca -->
+      <div class="text-xs text-gray-500 mb-1 flex justify-between">
         <span>{{ producto.categoria?.nombre }}</span>
         <span>{{ producto.marca?.nombre }}</span>
       </div>
 
       <!-- Nombre del producto -->
-      <h3 class="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">
+      <h3 class="text-gray-900 font-semibold mb-3 line-clamp-2 min-h-[2.5rem]">
         {{ producto.nombre }}
       </h3>
 
       <!-- Precios -->
-      <div class="space-y-2">
-        <!-- Precio normal -->
+      <div class="space-y-3 mb-3">
+        <!-- Precio unitario con etiqueta según autenticación -->
         <div class="flex justify-between items-center">
-          <span class="text-sm text-gray-500">Precio unitario:</span>
-          <span class="text-lg font-bold text-gray-900">{{ formatPrice(producto.precio_l1) }}</span>
+          <span class="text-gray-500 text-sm flex items-center gap-1">
+            <span>{{ authStore.isAuthenticated ? 'Precio mayorista:' : 'Precio x unidad:' }}</span>
+            <svg 
+              v-if="authStore.isAuthenticated"
+              class="w-4 h-4 text-[#FF1F6D]" 
+              fill="none" 
+              viewBox="0 0 24 24" 
+              stroke="currentColor"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+            </svg>
+          </span>
+          <span class="font-semibold text-gray-900">
+            Bs. {{ precioUnitario }}
+          </span>
         </div>
 
-        <!-- Precio por docena -->
-        <div class="flex justify-between items-center text-sm">
-          <span class="text-gray-500">Precio por docena:</span>
-          <span class="font-semibold text-[#33c7d1]">{{ formatPrice(producto.precio_l2) }}</span>
+        <!-- Precio por docena destacado -->
+        <div class="p-2 bg-[#fff8f9] rounded-lg border-2 border-[#33c7d1] relative">
+          <div class="absolute -top-2 -right-2 bg-[#33c7d1] text-white text-xs px-2 py-1 rounded-full">
+            ¡Ahorra más!
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-[#33c7d1] text-sm font-medium flex items-center gap-1">
+              {{ authStore.isAuthenticated ? 'Precio mayorista x docena:' : 'Precio x docena:' }}
+              <svg 
+                v-if="authStore.isAuthenticated"
+                class="w-4 h-4" 
+                fill="none" 
+                viewBox="0 0 24 24" 
+                stroke="currentColor"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+              </svg>
+            </span>
+            <span class="font-bold text-lg text-[#33c7d1]">
+              Bs. {{ precioPorDocena }}
+            </span>
+          </div>
         </div>
 
-        <!-- Precios mayoristas (solo si está autenticado) -->
-        <template v-if="showPreciosMayoristas">
-          <div class="flex justify-between items-center text-sm">
-            <span class="text-gray-500">Precio mayorista:</span>
-            <span class="font-semibold text-[#33c7d1]">{{ formatPrice(producto.precio_l3) }}</span>
-          </div>
-          <div class="flex justify-between items-center text-sm">
-            <span class="text-gray-500">Precio distribuidor:</span>
-            <span class="font-semibold text-[#33c7d1]">{{ formatPrice(producto.precio_l4) }}</span>
-          </div>
-        </template>
+        <!-- Mensaje para usuarios no autenticados -->
+        <div v-if="!authStore.isAuthenticated" 
+             class="text-xs text-gray-500 text-center mt-2">
+          <router-link 
+            to="/login" 
+            class="text-[#FF1F6D] hover:underline"
+          >
+            Inicia sesión
+          </router-link>
+          para ver precios mayoristas
+        </div>
       </div>
 
-      <!-- Stock -->
-      <div class="mt-2 text-sm text-gray-500">
-        Stock disponible: {{ producto.stock }}
+      <!-- Botones -->
+      <div class="grid grid-cols-5 gap-2 mt-4">
+        <button 
+          @click="openModal"
+          class="col-span-4 bg-[#FF1F6D] text-white py-2 px-3 rounded-md text-sm font-medium 
+                 hover:bg-[#e01a61] transition-all duration-300 transform hover:scale-105 
+                 flex items-center justify-center gap-1 group"
+        >
+          <span>Ver detalles</span>
+          <svg 
+            class="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" 
+            fill="none" 
+            viewBox="0 0 24 24" 
+            stroke="currentColor"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+          </svg>
+        </button>
+        <button 
+          class="bg-[#33c7d1] text-white p-2 rounded-md hover:bg-[#2ba3ac] transition-all duration-300 
+                 transform hover:scale-110 flex items-center justify-center"
+        >
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+        </button>
       </div>
-
-      <!-- Botón agregar al carrito -->
-      <button
-        @click="addToCart"
-        :disabled="producto.stock <= 0"
-        class="mt-4 w-full bg-[#33c7d1] text-white py-2 px-4 rounded-md hover:bg-[#2ba3ac] transition-colors duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-          <path d="M3 1a1 1 0 000 2h1.22l.305 1.222a.997.997 0 00.01.042l1.358 5.43-.893.892C3.74 11.846 4.632 14 6.414 14H15a1 1 0 000-2H6.414l1-1H14a1 1 0 00.894-.553l3-6A1 1 0 0017 3H6.28l-.31-1.243A1 1 0 005 1H3zM16 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM6.5 18a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" />
-        </svg>
-        {{ producto.stock > 0 ? 'Agregar al carrito' : 'Agotado' }}
-      </button>
     </div>
   </div>
-</template> 
+
+  <!-- Modal de detalles -->
+  <Teleport to="body">
+    <Transition name="fade">
+      <div v-if="showModal" class="fixed inset-0 z-50 overflow-y-auto" role="dialog">
+        <!-- Overlay -->
+        <div 
+          class="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
+          @click="closeModal"
+        ></div>
+
+        <!-- Modal container -->
+        <div class="flex min-h-screen items-center justify-center p-4">
+          <div 
+            class="relative bg-white rounded-lg max-w-3xl w-full mx-auto shadow-xl transform transition-all"
+            @click.stop
+          >
+            <!-- Modal header -->
+            <div class="flex items-center justify-between p-4 border-b">
+              <h3 class="text-xl font-semibold text-gray-900">
+                Detalles del producto
+              </h3>
+              <button 
+                @click="closeModal"
+                class="p-1 hover:bg-gray-100 rounded-full transition-colors duration-200"
+              >
+                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <!-- Modal content -->
+            <div class="p-6">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Imagen del producto -->
+                <div class="aspect-square rounded-lg overflow-hidden">
+                  <img 
+                    :src="producto.imagen_url" 
+                    :alt="producto.nombre"
+                    class="w-full h-full object-cover object-center"
+                  />
+                </div>
+
+                <!-- Información del producto -->
+                <div class="space-y-4">
+                  <div>
+                    <h4 class="text-sm text-gray-500">Categoría</h4>
+                    <p class="text-gray-900">{{ producto.categoria?.nombre }}</p>
+                  </div>
+
+                  <div>
+                    <h4 class="text-sm text-gray-500">Marca</h4>
+                    <p class="text-gray-900">{{ producto.marca?.nombre }}</p>
+                  </div>
+
+                  <div>
+                    <h4 class="text-sm text-gray-500">Nombre del producto</h4>
+                    <p class="text-xl font-semibold text-gray-900">{{ producto.nombre }}</p>
+                  </div>
+
+                  <div>
+                    <h4 class="text-sm text-gray-500">Descripción</h4>
+                    <p class="text-gray-700">{{ producto.descripcion || 'Sin descripción disponible' }}</p>
+                  </div>
+
+                  <!-- Precios -->
+                  <div class="space-y-2 pt-4">
+                    <div class="flex justify-between items-center">
+                      <span class="text-gray-500">
+                        {{ authStore.isAuthenticated ? 'Precio mayorista:' : 'Precio normal:' }}
+                      </span>
+                      <span class="font-semibold text-gray-900">
+                        Bs. {{ precioUnitario }}
+                      </span>
+                    </div>
+
+                    <div class="p-3 bg-[#fff8f9] rounded-lg border-2 border-[#33c7d1]">
+                      <div class="flex justify-between items-center">
+                        <span class="text-[#33c7d1] font-medium">
+                          {{ authStore.isAuthenticated ? 'Precio mayorista x docena:' : 'Precio x docena:' }}
+                        </span>
+                        <span class="font-bold text-lg text-[#33c7d1]">
+                          Bs. {{ precioPorDocena }}
+                        </span>
+                      </div>
+                    </div>
+
+                    <!-- Mensaje informativo para usuarios no autenticados -->
+                    <div v-if="!authStore.isAuthenticated" 
+                         class="text-sm text-gray-500 text-center mt-2">
+                      <router-link 
+                        to="/login" 
+                        class="text-[#FF1F6D] hover:underline"
+                        @click="closeModal"
+                      >
+                        Inicia sesión
+                      </router-link>
+                      para acceder a precios mayoristas especiales
+                    </div>
+                  </div>
+
+                  <!-- Stock -->
+                  <div class="pt-4">
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium"
+                          :class="producto.stock > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
+                    >
+                      {{ producto.stock > 0 ? 'En stock' : 'Sin stock' }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Productos recomendados -->
+              <ProductosRecomendados
+                :categoria-id="producto.categoria_id"
+                :producto-actual-id="producto.id"
+                @select-producto="selectRecomendado"
+              />
+            </div>
+
+            <!-- Modal footer -->
+            <div class="flex items-center justify-end gap-3 p-4 border-t">
+              <button 
+                @click="closeModal"
+                class="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md transition-colors duration-200"
+              >
+                Cerrar
+              </button>
+              <button 
+                v-if="producto.stock > 0"
+                @click="addToCart"
+                class="px-4 py-2 text-sm font-medium text-white bg-[#33c7d1] hover:bg-[#2ba3ac] rounded-md transition-colors duration-200"
+              >
+                Agregar al carrito
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+</template>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: all 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+.fade-enter-to,
+.fade-leave-from {
+  opacity: 1;
+  transform: scale(1);
+}
+</style> 

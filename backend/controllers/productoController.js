@@ -1,6 +1,8 @@
 const { Producto, Categoria, Marca, ColorProducto } = require('../models');
 const supabase = require('../config/supabase');
 const { Op } = require('sequelize');
+const { Sequelize } = require('sequelize');
+const recommendationService = require('../services/recommendationService');
 
 const productoController = {
   // Obtener productos con filtros y paginación
@@ -238,6 +240,108 @@ const productoController = {
     } catch (error) {
       console.error('Error al actualizar producto:', error);
       res.status(500).json({ message: 'Error al actualizar el producto' });
+    }
+  },
+
+  // Obtener productos recomendados
+  getProductosRecomendados: async (req, res) => {
+    try {
+      const {
+        categoria_id,
+        marca_id,
+        exclude_id,
+        limit = 8
+      } = req.query;
+
+      // 1. Obtener productos frecuentemente comprados juntos usando FP-Growth
+      const frequentlyBoughtWith = await recommendationService.getFrequentItemsets(exclude_id);
+      
+      // 2. Obtener productos por diferentes criterios
+      const [fpProducts, categoryProducts, brandProducts] = await Promise.all([
+        // Productos del análisis FP-Growth (40% del total)
+        Producto.findAll({
+          where: {
+            id: { [Op.in]: frequentlyBoughtWith },
+            stock: { [Op.gt]: 0 }
+          },
+          limit: Math.floor(limit * 0.4)
+        }),
+
+        // Productos de la misma categoría (30% del total)
+        Producto.findAll({
+          where: {
+            categoria_id,
+            id: { [Op.ne]: exclude_id },
+            stock: { [Op.gt]: 0 }
+          },
+          order: [['ventas_totales', 'DESC']],
+          limit: Math.floor(limit * 0.3)
+        }),
+
+        // Productos de la misma marca (30% del total)
+        Producto.findAll({
+          where: {
+            marca_id,
+            id: { [Op.ne]: exclude_id },
+            stock: { [Op.gt]: 0 }
+          },
+          order: [['created_at', 'DESC']],
+          limit: Math.floor(limit * 0.3)
+        })
+      ]);
+
+      // Combinar y procesar resultados
+      const allProducts = [
+        ...fpProducts.map(p => ({
+          ...p.toJSON(),
+          recommendationType: 'frequently_bought',
+          confidence: frequentlyBoughtWith.find(item => item.id === p.id)?.support || 0
+        })),
+        ...categoryProducts.map(p => ({
+          ...p.toJSON(),
+          recommendationType: 'same_category'
+        })),
+        ...brandProducts.map(p => ({
+          ...p.toJSON(),
+          recommendationType: 'same_brand'
+        }))
+      ];
+
+      // Eliminar duplicados y ordenar por relevancia
+      const uniqueProducts = Array.from(
+        new Set(allProducts.map(p => p.id))
+      ).map(id => {
+        const product = allProducts.find(p => p.id === id);
+        return {
+          ...product,
+          relevanceScore: 
+            product.recommendationType === 'frequently_bought' ? 3 :
+            product.recommendationType === 'same_category' ? 2 : 1
+        };
+      });
+
+      // Ordenar por relevancia y aleatorizar dentro de cada grupo
+      const recommendations = uniqueProducts
+        .sort((a, b) => b.relevanceScore - a.relevanceScore)
+        .slice(0, limit);
+
+      res.json({
+        status: 'success',
+        productos: recommendations,
+        metadata: {
+          totalAnalyzed: allProducts.length,
+          fromFPGrowth: fpProducts.length,
+          fromCategory: categoryProducts.length,
+          fromBrand: brandProducts.length
+        }
+      });
+
+    } catch (error) {
+      console.error('Error en recomendaciones:', error);
+      res.status(500).json({
+        message: 'Error al obtener productos recomendados',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
   }
 };

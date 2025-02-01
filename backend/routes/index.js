@@ -21,4 +21,5 @@ router.use('/users', userRoutes);
 router.use('/marcas', marcaRoutes);
 router.use('/consultas', consultaRoutes);
 
+
 module.exports = router;

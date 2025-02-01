@@ -278,8 +278,10 @@
       </div>
     </div>
   </header>
-
-  <!-- <CartPanel /> -->
+<div>
+  <CartPanel />
+</div>
+  
 </template>
 
 <script setup>
