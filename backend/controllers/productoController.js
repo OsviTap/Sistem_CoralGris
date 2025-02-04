@@ -90,6 +90,7 @@ const productoController = {
         nombre,
         descripcion,
         categoria_id,
+        subcategoria_id,
         marca_id,
         precio_l1,
         precio_l2,
@@ -138,8 +139,10 @@ const productoController = {
         precio_l4,
         stock,
         codigo_sku,
-        imagen_url
+        imagen_url,
+        subcategoria_id
       });
+
 
       if (colores && colores.length > 0) {
         await ColorProducto.bulkCreate(
@@ -152,9 +155,18 @@ const productoController = {
 
       const productoCreado = await Producto.findByPk(producto.id, {
         include: [
-          { model: Categoria },
-          { model: Marca },
-          { model: ColorProducto }
+          { 
+            model: Categoria,
+            as: 'categoria'
+          },
+          { 
+            model: Marca,
+            as: 'marca'
+          },
+          { 
+            model: ColorProducto,
+            as: 'colores'
+          }
         ]
       });
 
@@ -176,12 +188,14 @@ const productoController = {
         nombre,
         descripcion,
         categoria_id,
+        subcategoria_id,
         marca_id,
         precio_l1,
         precio_l2,
         precio_l3,
         precio_l4,
         stock,
+
         codigo_sku,
         colores
       } = req.body;
@@ -208,8 +222,10 @@ const productoController = {
         precio_l4,
         stock,
         codigo_sku,
-        imagen_url
+        imagen_url,
+        subcategoria_id
       });
+
 
       if (colores) {
         // Eliminar colores anteriores
@@ -246,101 +262,34 @@ const productoController = {
   // Obtener productos recomendados
   getProductosRecomendados: async (req, res) => {
     try {
-      const {
-        categoria_id,
-        marca_id,
-        exclude_id,
-        limit = 8
-      } = req.query;
-
-      // 1. Obtener productos frecuentemente comprados juntos usando FP-Growth
-      const frequentlyBoughtWith = await recommendationService.getFrequentItemsets(exclude_id);
+      const { categoria_id, exclude_id, limit = 8 } = req.query;
       
-      // 2. Obtener productos por diferentes criterios
-      const [fpProducts, categoryProducts, brandProducts] = await Promise.all([
-        // Productos del análisis FP-Growth (40% del total)
-        Producto.findAll({
-          where: {
-            id: { [Op.in]: frequentlyBoughtWith },
-            stock: { [Op.gt]: 0 }
-          },
-          limit: Math.floor(limit * 0.4)
-        }),
+      console.log('Buscando recomendados:', { categoria_id, exclude_id, limit }) // Debug
 
-        // Productos de la misma categoría (30% del total)
-        Producto.findAll({
-          where: {
-            categoria_id,
-            id: { [Op.ne]: exclude_id },
-            stock: { [Op.gt]: 0 }
-          },
-          order: [['ventas_totales', 'DESC']],
-          limit: Math.floor(limit * 0.3)
-        }),
-
-        // Productos de la misma marca (30% del total)
-        Producto.findAll({
-          where: {
-            marca_id,
-            id: { [Op.ne]: exclude_id },
-            stock: { [Op.gt]: 0 }
-          },
-          order: [['created_at', 'DESC']],
-          limit: Math.floor(limit * 0.3)
-        })
-      ]);
-
-      // Combinar y procesar resultados
-      const allProducts = [
-        ...fpProducts.map(p => ({
-          ...p.toJSON(),
-          recommendationType: 'frequently_bought',
-          confidence: frequentlyBoughtWith.find(item => item.id === p.id)?.support || 0
-        })),
-        ...categoryProducts.map(p => ({
-          ...p.toJSON(),
-          recommendationType: 'same_category'
-        })),
-        ...brandProducts.map(p => ({
-          ...p.toJSON(),
-          recommendationType: 'same_brand'
-        }))
-      ];
-
-      // Eliminar duplicados y ordenar por relevancia
-      const uniqueProducts = Array.from(
-        new Set(allProducts.map(p => p.id))
-      ).map(id => {
-        const product = allProducts.find(p => p.id === id);
-        return {
-          ...product,
-          relevanceScore: 
-            product.recommendationType === 'frequently_bought' ? 3 :
-            product.recommendationType === 'same_category' ? 2 : 1
-        };
+      const productos = await Producto.findAll({
+        where: {
+          categoria_id,
+          id: { [Op.ne]: exclude_id },
+          stock: { [Op.gt]: 0 }
+        },
+        limit: parseInt(limit),
+        include: [
+          { model: Categoria, as: 'categoria' },
+          { model: Marca, as: 'marca' }
+        ]
       });
 
-      // Ordenar por relevancia y aleatorizar dentro de cada grupo
-      const recommendations = uniqueProducts
-        .sort((a, b) => b.relevanceScore - a.relevanceScore)
-        .slice(0, limit);
+      console.log(`Encontrados ${productos.length} productos recomendados`) // Debug
 
       res.json({
-        status: 'success',
-        productos: recommendations,
-        metadata: {
-          totalAnalyzed: allProducts.length,
-          fromFPGrowth: fpProducts.length,
-          fromCategory: categoryProducts.length,
-          fromBrand: brandProducts.length
-        }
+        productos,
+        success: true
       });
-
     } catch (error) {
-      console.error('Error en recomendaciones:', error);
+      console.error('Error en recomendados:', error);
       res.status(500).json({
         message: 'Error al obtener productos recomendados',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        error: error.message
       });
     }
   }

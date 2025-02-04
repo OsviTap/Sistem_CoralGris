@@ -60,21 +60,19 @@ const closeModal = () => {
 }
 
 const selectRecomendado = (productoSeleccionado) => {
-  // Actualizar el producto actual en el modal
-  producto.value = productoSeleccionado
-  // Scroll suave hacia arriba del modal
-  const modalContent = document.querySelector('.modal-content')
-  modalContent?.scrollTo({
-    top: 0,
-    behavior: 'smooth'
-  })
+  // Cerrar el modal actual
+  closeModal()
+  // Pequeño delay para asegurar que el modal anterior se cierre
+  setTimeout(() => {
+    // Actualizar el producto y abrir el nuevo modal
+    producto.value = productoSeleccionado
+    showModal.value = true
+  }, 300)
 }
 </script>
 
 <template>
-  <div 
-    class="bg-white rounded-lg shadow-md overflow-hidden transform transition-all duration-300 hover:shadow-xl hover:scale-[1.02] group"
-  >
+  <div class="bg-white rounded-lg shadow-md overflow-hidden h-full flex flex-col transform transition-all duration-300 hover:shadow-xl hover:scale-[1.02]">
     <!-- Imagen del producto -->
     <div class="relative aspect-square overflow-hidden">
       <img 

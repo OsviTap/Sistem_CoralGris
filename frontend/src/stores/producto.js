@@ -92,30 +92,23 @@ export const useProductoStore = defineStore('producto', {
       this.fetchProductos()
     },
 
-    async fetchProductosRecomendados({ categoriaId, marcaId, excludeId, limit = 8 }) {
-      this.loadingRecomendados = true
-      this.errorRecomendados = null
+    async fetchProductosRecomendados({ categoriaId, excludeId, limit = 8 }) {
+      console.log('Store: Fetching recomendados:', { categoriaId, excludeId, limit }) // Debug
       
       try {
         const response = await axios.get('/productos/recomendados', {
           params: {
             categoria_id: categoriaId,
-            marca_id: marcaId,
             exclude_id: excludeId,
             limit
           }
-        })
+        });
 
-        if (response.data?.productos) {
-          return response.data.productos
-        }
-        return []
+        console.log('Store: Respuesta recomendados:', response.data) // Debug
+        return response.data.productos || [];
       } catch (error) {
-        console.error('Error al cargar productos recomendados:', error)
-        this.errorRecomendados = 'Error al cargar los productos recomendados'
-        return []
-      } finally {
-        this.loadingRecomendados = false
+        console.error('Store: Error recomendados:', error);
+        return [];
       }
     }
   }
