@@ -89,7 +89,9 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useProductoStore } from '@/stores/producto'
 import ProductCard from './ProductCard.vue'
+import { useRouter } from 'vue-router'
 
+const router = useRouter()
 const emit = defineEmits(['select-producto'])
 
 const props = defineProps({
@@ -112,6 +114,8 @@ const props = defineProps({
 })
 
 const productoStore = useProductoStore()
+const loading = ref(true)
+const error = ref(null)
 const productosRecomendados = ref([])
 const currentIndex = ref(0)
 const isMobile = ref(window.innerWidth < 640)
@@ -197,22 +201,34 @@ const goToSlide = (index) => {
 }
 
 const selectProducto = (producto) => {
-  emit('select-producto', producto)
+  // Emitir evento para cerrar el modal actual
+  emit('select-producto')
+  
+  // Pequeño delay para asegurar que el modal se cierre
+  setTimeout(() => {
+    router.push({
+      path: `/productos/${producto.id}`,
+      // Opcional: mantener la categoría y otros filtros
+      query: router.currentRoute.value.query
+    })
+  }, 300)
 }
 
-// Cargar datos
 const fetchRecomendados = async () => {
   try {
-    const response = await productoStore.fetchProductosRecomendados({
-      categoriaId: props.categoriaId,
-      excludeId: props.productoActualId,
-      limit: props.maxItems
+    loading.value = true
+    error.value = null
+    productosRecomendados.value = await productoStore.fetchProductosRecomendados({
+      categoria_id: props.categoriaId,
+      exclude_id: props.productoActualId
     })
-    productosRecomendados.value = response
     currentIndex.value = 0
     resumeAutoScroll()
-  } catch (error) {
-    console.error('Error al cargar productos recomendados:', error)
+  } catch (err) {
+    error.value = err.message || 'Error al cargar productos recomendados'
+    console.error('Error recomendados:', err)
+  } finally {
+    loading.value = false
   }
 }
 
@@ -229,6 +245,12 @@ onUnmounted(() => {
 })
 
 watch(() => props.categoriaId, (newId) => {
+  if (newId) {
+    fetchRecomendados()
+  }
+})
+
+watch(() => props.productoActualId, (newId) => {
   if (newId) {
     fetchRecomendados()
   }

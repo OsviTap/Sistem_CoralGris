@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
 import { useAuthStore } from './auth'
 
 export const useCartStore = defineStore('cart', {
@@ -8,78 +9,105 @@ export const useCartStore = defineStore('cart', {
   }),
 
   getters: {
-    totalItems: (state) => state.items.reduce((sum, item) => sum + item.cantidad, 0),
+    totalItems: (state) => state.items.length,
     
-    subtotal: (state) => state.items.reduce((sum, item) => sum + (item.precio * item.cantidad), 0),
+    isEmpty: (state) => state.items.length === 0,
     
-    total: (state) => state.subtotal,
+    subtotal: (state) => state.items.reduce((total, item) => {
+      return total + (item.precio * item.cantidad)
+    }, 0),
+    
+    total: (state) => {
+      const subtotal = state.items.reduce((total, item) => {
+        return total + (item.precio * item.cantidad)
+      }, 0)
+      // Aquí puedes agregar lógica para impuestos o descuentos
+      return subtotal
+    },
 
-    isEmpty: (state) => state.items.length === 0
+    // Agrupar items por tipo de precio (normal/mayoreo)
+    itemsByPriceType: (state) => {
+      return state.items.reduce((groups, item) => {
+        const type = item.cantidad >= (item.cantidad_mayoreo || 12) ? 'mayoreo' : 'normal'
+        if (!groups[type]) groups[type] = []
+        groups[type].push(item)
+        return groups
+      }, {})
+    }
   },
 
   actions: {
-    addItem(producto) {
-      const existingItem = this.items.find(item => item.id === producto.id)
+    addItem(product) {
+      const existingItem = this.items.find(item => item.id === product.id)
       
       if (existingItem) {
-        // Verificar stock antes de incrementar
-        if (existingItem.cantidad < producto.stock) {
-          existingItem.cantidad++
+        // Verificar que no exceda el stock
+        const newQuantity = existingItem.cantidad + product.cantidad
+        if (newQuantity <= product.stock) {
+          existingItem.cantidad = newQuantity
         }
       } else {
         this.items.push({
-          id: producto.id,
-          nombre: producto.nombre,
-          precio: producto.precio,
-          imagen_url: producto.imagen_url,
-          cantidad: 1,
-          stock: producto.stock
+          id: product.id,
+          nombre: product.nombre,
+          imagen_url: product.imagen_url,
+          precio: product.precio,
+          cantidad: product.cantidad,
+          stock: product.stock
         })
       }
-
-      // Guardar en localStorage
-      this.saveToLocalStorage()
       
-      // Abrir el carrito
-      this.isOpen = true
+      // Guardar en localStorage
+      this.saveCart()
     },
 
     removeItem(productId) {
-      const index = this.items.findIndex(item => item.id === productId)
-      if (index > -1) {
-        this.items.splice(index, 1)
-        this.saveToLocalStorage()
-      }
+      this.items = this.items.filter(item => item.id !== productId)
+      this.saveCart()
     },
 
-    updateQuantity(productId, cantidad) {
+    updateQuantity(productId, quantity) {
       const item = this.items.find(item => item.id === productId)
-      if (item) {
-        if (cantidad <= item.stock && cantidad > 0) {
-          item.cantidad = cantidad
-          this.saveToLocalStorage()
-        }
+      if (item && quantity <= item.stock) {
+        item.cantidad = quantity
+        this.saveCart()
       }
     },
 
     clearCart() {
       this.items = []
-      this.saveToLocalStorage()
+      this.saveCart()
     },
 
     toggleCart() {
       this.isOpen = !this.isOpen
+      if (this.isOpen) {
+        document.body.style.overflow = 'hidden'
+      } else {
+        document.body.style.overflow = ''
+      }
     },
 
-    saveToLocalStorage() {
+    saveCart() {
       localStorage.setItem('cart', JSON.stringify(this.items))
     },
 
-    loadFromLocalStorage() {
+    loadCart() {
       const savedCart = localStorage.getItem('cart')
       if (savedCart) {
         this.items = JSON.parse(savedCart)
       }
+    },
+
+    // Actualizar precios según nivel de usuario
+    updatePrices(nivelPrecio) {
+      this.items.forEach(item => {
+        // Aquí deberías hacer una llamada a la API para obtener el precio actualizado
+        // según el nivel del usuario, o manejar la lógica según tu implementación
+        // Por ahora solo actualizamos con el precio L1
+        item.precio = item.precio_l1
+      })
+      this.saveCart()
     },
 
     async checkout() {
@@ -95,5 +123,15 @@ export const useCartStore = defineStore('cart', {
       // Limpiar carrito después de la compra exitosa
       this.clearCart()
     }
+  },
+
+  persist: {
+    enabled: true,
+    strategies: [
+      {
+        key: 'cart',
+        storage: localStorage
+      }
+    ]
   }
 }) 

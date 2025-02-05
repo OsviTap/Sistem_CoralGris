@@ -19,7 +19,8 @@ export const useProductoStore = defineStore('producto', {
     error: null,
     productosRecomendados: [],
     loadingRecomendados: false,
-    errorRecomendados: null
+    errorRecomendados: null,
+    statsRecomendados: null
   }),
 
   actions: {
@@ -92,24 +93,38 @@ export const useProductoStore = defineStore('producto', {
       this.fetchProductos()
     },
 
-    async fetchProductosRecomendados({ categoriaId, excludeId, limit = 8 }) {
-      console.log('Store: Fetching recomendados:', { categoriaId, excludeId, limit }) // Debug
-      
+    async fetchProductosRecomendados({ categoria_id, exclude_id, limit = 8 }) {
       try {
         const response = await axios.get('/productos/recomendados', {
           params: {
-            categoria_id: categoriaId,
-            exclude_id: excludeId,
+            categoria_id,
+            exclude_id,
             limit
           }
         });
-
-        console.log('Store: Respuesta recomendados:', response.data) // Debug
-        return response.data.productos || [];
+        return response.data;
       } catch (error) {
         console.error('Store: Error recomendados:', error);
-        return [];
+        throw error;
       }
+    },
+
+    async fetchProductoById(id) {
+      try {
+        const response = await axios.get(`/productos/${id}`)
+        return response.data.producto
+      } catch (error) {
+        console.error('Error al obtener producto:', error)
+        throw error
+      }
+    }
+  },
+
+  getters: {
+    recomendacionesStats: (state) => state.statsRecomendados || {
+      patrones: 0,
+      categoria: 0,
+      marca: 0
     }
   }
 }) 

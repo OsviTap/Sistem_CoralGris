@@ -1,8 +1,8 @@
-const { Producto, Categoria, Marca, ColorProducto } = require('../models');
+const { Producto, Categoria, Marca, ColorProducto, Venta, DetalleVenta, Pedido, DetallePedido } = require('../models');
 const supabase = require('../config/supabase');
-const { Op } = require('sequelize');
-const { Sequelize } = require('sequelize');
+const { Op, Sequelize } = require('sequelize');
 const recommendationService = require('../services/recommendationService');
+const fpGrowth = require('node-fpgrowth');
 
 const productoController = {
   // Obtener productos con filtros y paginación
@@ -262,34 +262,91 @@ const productoController = {
   // Obtener productos recomendados
   getProductosRecomendados: async (req, res) => {
     try {
-      const { categoria_id, exclude_id, limit = 8 } = req.query;
-      
-      console.log('Buscando recomendados:', { categoria_id, exclude_id, limit }) // Debug
+      const { 
+        categoria_id, 
+        exclude_id, 
+        limit = 8 
+      } = req.query;
+
+      const where = {
+        estado: 'activo'
+      };
+
+      if (categoria_id) {
+        where.categoria_id = categoria_id;
+      }
+
+      if (exclude_id) {
+        where.id = {
+          [Op.ne]: exclude_id
+        };
+      }
 
       const productos = await Producto.findAll({
-        where: {
-          categoria_id,
-          id: { [Op.ne]: exclude_id },
-          stock: { [Op.gt]: 0 }
-        },
-        limit: parseInt(limit),
+        where,
         include: [
-          { model: Categoria, as: 'categoria' },
-          { model: Marca, as: 'marca' }
+          {
+            model: Categoria,
+            as: 'categoria',
+            attributes: ['nombre']
+          },
+          {
+            model: Marca,
+            as: 'marca',
+            attributes: ['nombre']
+          }
+        ],
+        limit: parseInt(limit),
+        order: Sequelize.literal('RANDOM()') // Cambiado a literal para PostgreSQL
+      });
+
+      res.json(productos);
+    } catch (error) {
+      console.error('Error al obtener productos recomendados:', error);
+      res.status(500).json({ 
+        message: 'Error al obtener productos recomendados',
+        error: error.message 
+      });
+    }
+  },
+
+  // Obtener producto por ID
+  getProductoById: async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const producto = await Producto.findByPk(id, {
+        include: [
+          { 
+            model: Categoria,
+            as: 'categoria'
+          },
+          { 
+            model: Marca,
+            as: 'marca'
+          },
+          { 
+            model: ColorProducto,
+            as: 'colores'
+          }
         ]
       });
 
-      console.log(`Encontrados ${productos.length} productos recomendados`) // Debug
+      if (!producto) {
+        return res.status(404).json({ 
+          message: 'Producto no encontrado' 
+        });
+      }
 
       res.json({
-        productos,
-        success: true
+        producto,
+        message: 'Producto encontrado exitosamente'
       });
     } catch (error) {
-      console.error('Error en recomendados:', error);
-      res.status(500).json({
-        message: 'Error al obtener productos recomendados',
-        error: error.message
+      console.error('Error al obtener producto por ID:', error);
+      res.status(500).json({ 
+        message: 'Error al obtener el producto',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   }

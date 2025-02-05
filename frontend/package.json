@@ -11,6 +11,7 @@
   "dependencies": {
     "@headlessui/vue": "^1.7.23",
     "@heroicons/vue": "^2.2.0",
+    "@mapbox/mapbox-gl-geocoder": "^5.0.3",
     "@popperjs/core": "^2.11.8",
     "@preline/dropdown": "^2.5.2",
     "@vuelidate/core": "^2.0.3",
@@ -21,6 +22,7 @@
     "dayjs": "^1.11.13",
     "dotenv": "^16.4.7",
     "lodash": "^4.17.21",
+    "mapbox-gl": "^3.9.4",
     "pinia": "^2.3.0",
     "preline": "^2.7.0",
     "swiper": "^11.2.1",

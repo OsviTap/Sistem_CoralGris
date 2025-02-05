@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useCartStore } from '@/stores/cart'
 import { useAuthStore } from '@/stores/auth'
 import ProductosRecomendados from './ProductosRecomendados.vue'
+import { useRouter } from 'vue-router'
 
 const props = defineProps({
   producto: {
@@ -16,18 +17,45 @@ const props = defineProps({
   nivelPrecio: {
     type: String,
     default: 'L1'
+  },
+  showAsPage: {
+    type: Boolean,
+    default: false
   }
 })
 
 const cartStore = useCartStore()
 const authStore = useAuthStore()
+const cantidad = ref(1)
+const showQuantityModal = ref(false)
+const router = useRouter()
 
-const precioUnitario = computed(() => {
-  return authStore.isAuthenticated ? props.producto.precio_l3 : props.producto.precio_l1
+// Computed properties para precios
+const precioNormal = computed(() => {
+  if (authStore.isAuthenticated && authStore.user?.nivel_precio) {
+    return props.producto[`precio_${authStore.user.nivel_precio.toLowerCase()}`]
+  }
+  return props.producto.precio_l1
 })
 
-const precioPorDocena = computed(() => {
-  return authStore.isAuthenticated ? props.producto.precio_l4 : props.producto.precio_l2
+const precioMayoreo = computed(() => {
+  if (authStore.isAuthenticated && authStore.user?.nivel_precio) {
+    const nivelActual = authStore.user.nivel_precio
+    const nivelSiguiente = {
+      'L1': 'L2',
+      'L2': 'L3',
+      'L3': 'L4',
+      'L4': 'L4'
+    }[nivelActual]
+    return props.producto[`precio_${nivelSiguiente.toLowerCase()}`]
+  }
+  // Para usuarios no autenticados o sin nivel, mostrar precio L2
+  return props.producto.precio_l2
+})
+
+const precioFinal = computed(() => {
+  const cantidadMayoreo = props.producto.cantidad_mayoreo || 12
+  return cantidad.value >= cantidadMayoreo ? precioMayoreo.value : precioNormal.value
 })
 
 const formatPrice = (price) => {
@@ -39,12 +67,18 @@ const formatPrice = (price) => {
 
 const addToCart = () => {
   cartStore.addItem({
-    id: props.producto.id,
-    nombre: props.producto.nombre,
-    precio: precioUnitario.value,
-    imagen_url: props.producto.imagen_url,
-    cantidad: 1
+    ...props.producto,
+    cantidad: cantidad.value,
+    precio: precioFinal.value
   })
+  showQuantityModal.value = false
+  cantidad.value = 1
+}
+
+const updateCantidad = (value) => {
+  if (value >= 1 && value <= props.producto.stock) {
+    cantidad.value = value
+  }
 }
 
 const showModal = ref(false)
@@ -54,20 +88,23 @@ const openModal = () => {
   document.body.style.overflow = 'hidden'
 }
 
-const closeModal = () => {
+const closeAndNavigate = () => {
   showModal.value = false
+  showQuantityModal.value = false
   document.body.style.overflow = ''
+  
+  // Solo navegar si estamos en la vista de detalle del producto
+  if (props.showAsPage) {
+    const currentPath = '/productos'
+    router.push({
+      path: currentPath,
+      query: router.currentRoute.value.query
+    })
+  }
 }
 
-const selectRecomendado = (productoSeleccionado) => {
-  // Cerrar el modal actual
-  closeModal()
-  // Pequeño delay para asegurar que el modal anterior se cierre
-  setTimeout(() => {
-    // Actualizar el producto y abrir el nuevo modal
-    producto.value = productoSeleccionado
-    showModal.value = true
-  }, 300)
+const selectRecomendado = () => {
+  closeAndNavigate()
 }
 </script>
 
@@ -129,7 +166,7 @@ const selectRecomendado = (productoSeleccionado) => {
             </svg>
           </span>
           <span class="font-semibold text-gray-900">
-            Bs. {{ precioUnitario }}
+            Bs. {{ precioNormal }}
           </span>
         </div>
 
@@ -152,7 +189,7 @@ const selectRecomendado = (productoSeleccionado) => {
               </svg>
             </span>
             <span class="font-bold text-lg text-[#33c7d1]">
-              Bs. {{ precioPorDocena }}
+              Bs. {{ precioMayoreo }}
             </span>
           </div>
         </div>
@@ -208,7 +245,7 @@ const selectRecomendado = (productoSeleccionado) => {
         <!-- Overlay -->
         <div 
           class="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
-          @click="closeModal"
+          @click="closeAndNavigate"
         ></div>
 
         <!-- Modal container -->
@@ -223,7 +260,7 @@ const selectRecomendado = (productoSeleccionado) => {
                 Detalles del producto
               </h3>
               <button 
-                @click="closeModal"
+                @click="closeAndNavigate"
                 class="p-1 hover:bg-gray-100 rounded-full transition-colors duration-200"
               >
                 <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -273,7 +310,7 @@ const selectRecomendado = (productoSeleccionado) => {
                         {{ authStore.isAuthenticated ? 'Precio mayorista:' : 'Precio normal:' }}
                       </span>
                       <span class="font-semibold text-gray-900">
-                        Bs. {{ precioUnitario }}
+                        Bs. {{ precioNormal }}
                       </span>
                     </div>
 
@@ -283,7 +320,7 @@ const selectRecomendado = (productoSeleccionado) => {
                           {{ authStore.isAuthenticated ? 'Precio mayorista x docena:' : 'Precio x docena:' }}
                         </span>
                         <span class="font-bold text-lg text-[#33c7d1]">
-                          Bs. {{ precioPorDocena }}
+                          Bs. {{ precioMayoreo }}
                         </span>
                       </div>
                     </div>
@@ -294,7 +331,7 @@ const selectRecomendado = (productoSeleccionado) => {
                       <router-link 
                         to="/login" 
                         class="text-[#FF1F6D] hover:underline"
-                        @click="closeModal"
+                        @click="closeAndNavigate"
                       >
                         Inicia sesión
                       </router-link>
@@ -324,15 +361,113 @@ const selectRecomendado = (productoSeleccionado) => {
             <!-- Modal footer -->
             <div class="flex items-center justify-end gap-3 p-4 border-t">
               <button 
-                @click="closeModal"
+                @click="closeAndNavigate"
                 class="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md transition-colors duration-200"
               >
                 Cerrar
               </button>
               <button 
                 v-if="producto.stock > 0"
-                @click="addToCart"
+                @click="showQuantityModal = true"
                 class="px-4 py-2 text-sm font-medium text-white bg-[#33c7d1] hover:bg-[#2ba3ac] rounded-md transition-colors duration-200"
+              >
+                Agregar al carrito
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+
+  <!-- Nuevo modal para selección de cantidad -->
+  <Teleport to="body">
+    <Transition name="fade">
+      <div v-if="showQuantityModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+        <div class="bg-white rounded-lg max-w-md w-full mx-4 shadow-xl">
+          <div class="p-4 border-b flex justify-between items-center">
+            <h3 class="text-lg font-semibold">Seleccionar cantidad</h3>
+            <button @click="showQuantityModal = false" class="p-1 hover:bg-gray-100 rounded-full">
+              <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <div class="p-6">
+            <!-- Información del producto -->
+            <div class="flex gap-4 mb-6">
+              <img :src="producto.imagen_url" :alt="producto.nombre" class="w-20 h-20 object-cover rounded"/>
+              <div>
+                <h4 class="font-medium">{{ producto.nombre }}</h4>
+                <p class="text-sm text-gray-500">{{ producto.categoria?.nombre }}</p>
+              </div>
+            </div>
+
+            <!-- Selector de cantidad -->
+            <div class="mb-6">
+              <label class="block text-sm font-medium text-gray-700 mb-2">
+                Cantidad
+              </label>
+              <div class="flex items-center gap-3">
+                <button 
+                  @click="updateCantidad(cantidad - 1)"
+                  class="p-2 border rounded hover:bg-gray-50"
+                >
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" />
+                  </svg>
+                </button>
+                <input 
+                  type="number" 
+                  v-model="cantidad"
+                  min="1"
+                  class="w-20 text-center border rounded p-2"
+                  @input="e => updateCantidad(parseInt(e.target.value))"
+                />
+                <button 
+                  @click="updateCantidad(cantidad + 1)"
+                  class="p-2 border rounded hover:bg-gray-50"
+                >
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Información de precios -->
+            <div class="space-y-3 mb-6">
+              <div class="p-3 bg-gray-50 rounded">
+                <div class="flex justify-between items-center">
+                  <span class="text-gray-600">Precio unitario:</span>
+                  <span class="font-medium">Bs. {{ precioFinal }}</span>
+                </div>
+              </div>
+
+              <div class="p-3 bg-[#fff8f9] rounded border-2 border-[#33c7d1]">
+                <div class="flex justify-between items-center">
+                  <span class="text-[#33c7d1] font-medium">
+                    Precio mayorista ({{ producto.cantidad_mayoreo || 12 }}+ unidades):
+                  </span>
+                  <span class="font-bold text-[#33c7d1]">
+                    Bs. {{ precioMayoreo }}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Botones de acción -->
+            <div class="flex gap-3">
+              <button 
+                @click="showQuantityModal = false"
+                class="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded"
+              >
+                Seguir comprando
+              </button>
+              <button 
+                @click="addToCart"
+                class="flex-1 px-4 py-2 text-white bg-[#33c7d1] hover:bg-[#2ba3ac] rounded"
               >
                 Agregar al carrito
               </button>

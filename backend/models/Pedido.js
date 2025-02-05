@@ -12,7 +12,8 @@ const Pedido = sequelize.define('Pedido', {
     references: {
       model: 'usuarios',
       key: 'id'
-    }
+    },
+    allowNull: true
   },
   vendedor_id: {
     type: DataTypes.BIGINT,
@@ -21,25 +22,43 @@ const Pedido = sequelize.define('Pedido', {
       key: 'id'
     }
   },
+  nombre: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  apellidos: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  telefono: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  email: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
   sucursal_id: {
     type: DataTypes.BIGINT,
     references: {
       model: 'sucursales',
       key: 'id'
-    }
+    },
+    allowNull: true
   },
   estado: {
     type: DataTypes.TEXT,
     allowNull: false,
+    defaultValue: 'pendiente',
     validate: {
-      isIn: [['pendiente', 'atendido', 'cancelado']]
+      isIn: [['pendiente', 'confirmado', 'en_preparacion', 'en_camino', 'entregado', 'cancelado']]
     }
   },
   tipo_pago: {
     type: DataTypes.TEXT,
     allowNull: false,
     validate: {
-      isIn: [['efectivo', 'tarjeta', 'transferencia']]
+      isIn: [['efectivo', 'transferencia', 'qr']]
     }
   },
   tipo_entrega: {
@@ -50,7 +69,28 @@ const Pedido = sequelize.define('Pedido', {
     }
   },
   direccion_entrega: {
-    type: DataTypes.TEXT
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  referencias: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  coordenadas: {
+    type: DataTypes.JSONB,
+    allowNull: true
+  },
+  requiere_factura: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  razon_social: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  nit: {
+    type: DataTypes.STRING,
+    allowNull: true
   },
   total: {
     type: DataTypes.DECIMAL,

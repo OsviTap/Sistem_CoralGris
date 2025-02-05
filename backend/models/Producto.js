@@ -69,6 +69,16 @@ const Producto = sequelize.define('Producto', {
   agotado: {
     type: DataTypes.BOOLEAN,
     defaultValue: false
+  },
+  cantidad_mayoreo: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    defaultValue: 12
+  },
+  cantidad_mayoreo_especial: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    defaultValue: 24
   }
 }, {
   tableName: 'productos',

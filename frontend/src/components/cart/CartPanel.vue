@@ -15,18 +15,23 @@ const formatPrice = (price) => {
   }).format(price)
 }
 
-const handleCheckout = async () => {
-  if (!authStore.isAuthenticated) {
-    cartStore.toggleCart() // Cerrar el panel
-    router.push('/login')
-    return
-  }
-  
-  try {
-    await cartStore.checkout()
-    // Redirigir a página de confirmación o mostrar mensaje
-  } catch (error) {
-    console.error('Error en checkout:', error)
+const handleCheckout = () => {
+  cartStore.toggleCart() // Cerrar el panel
+  router.push('/checkout')
+}
+
+const continuarComprando = () => {
+  cartStore.toggleCart()
+  router.push('/productos')
+}
+
+const eliminarProducto = (id) => {
+  cartStore.removeItem(id)
+}
+
+const actualizarCantidad = (id, cantidad) => {
+  if (cantidad > 0) {
+    cartStore.updateQuantity(id, cantidad)
   }
 }
 </script>
@@ -88,27 +93,21 @@ const handleCheckout = async () => {
                         </div>
                       </div>
                       <div class="flex-1 flex items-end justify-between text-sm">
-                        <div class="flex items-center">
+                        <div class="flex items-center space-x-2">
                           <button 
-                            @click="cartStore.updateQuantity(item.id, item.cantidad - 1)"
+                            @click="actualizarCantidad(item.id, item.cantidad - 1)"
                             class="text-gray-500 hover:text-gray-700"
-                            :disabled="item.cantidad <= 1"
-                          >
-                            -
-                          </button>
-                          <span class="mx-2 text-gray-700">{{ item.cantidad }}</span>
+                          >-</button>
+                          <span class="font-medium">{{ item.cantidad }}</span>
                           <button 
-                            @click="cartStore.updateQuantity(item.id, item.cantidad + 1)"
+                            @click="actualizarCantidad(item.id, item.cantidad + 1)"
                             class="text-gray-500 hover:text-gray-700"
-                            :disabled="item.cantidad >= item.stock"
-                          >
-                            +
-                          </button>
+                          >+</button>
                         </div>
 
                         <button 
-                          @click="cartStore.removeItem(item.id)"
-                          class="font-medium text-[#33c7d1] hover:text-[#2ba3ac]"
+                          @click="eliminarProducto(item.id)"
+                          class="font-medium text-red-600 hover:text-red-500"
                         >
                           Eliminar
                         </button>
@@ -123,11 +122,11 @@ const handleCheckout = async () => {
           <!-- Footer -->
           <div class="border-t border-gray-200 py-6 px-4 sm:px-6">
             <div class="flex justify-between text-base font-medium text-gray-900">
-              <p>Subtotal</p>
-              <p>{{ formatPrice(cartStore.subtotal) }}</p>
+              <p>Total</p>
+              <p>{{ formatPrice(cartStore.total) }}</p>
             </div>
             <p class="mt-0.5 text-sm text-gray-500">
-              Envío y descuentos calculados al finalizar la compra.
+              Envío calculado al finalizar la compra.
             </p>
             <div class="mt-6">
               <button
@@ -142,11 +141,10 @@ const handleCheckout = async () => {
               <p>
                 o
                 <button
-                  @click="cartStore.toggleCart"
-                  class="text-[#33c7d1] font-medium hover:text-[#2ba3ac]"
+                  @click="continuarComprando"
+                  class="text-[#33c7d1] font-medium hover:text-[#2ba3ac] ml-1"
                 >
                   Continuar comprando
-                  <span aria-hidden="true"> &rarr;</span>
                 </button>
               </p>
             </div>
