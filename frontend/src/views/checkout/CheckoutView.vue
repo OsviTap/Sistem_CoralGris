@@ -1,10 +1,11 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, nextTick, watch, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCartStore } from '@/stores/cart'
 import { usePedidoStore } from '@/stores/pedido'
 import { useAuthStore } from '@/stores/auth'
 import mapboxgl from 'mapbox-gl'
+import MapboxGeocoder from '@mapbox/mapbox-gl-geocoder'
 import '@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css'
 import Navbar from '@/components/landing/Navbar.vue'
 import Footer from '@/components/landing/Footer.vue'
@@ -18,6 +19,39 @@ const loading = ref(false)
 const error = ref(null)
 const map = ref(null)
 const marker = ref(null)
+const mapInstance = ref(null)
+
+const alerta = ref({
+  mensaje: '',
+  tipo: '',
+  visible: false
+});
+
+const mostrarAlerta = (mensaje, tipo = 'info') => {
+  alerta.value = {
+    mensaje,
+    tipo,
+    visible: true
+  };
+  setTimeout(() => {
+    alerta.value.visible = false;
+  }, 3000);
+};
+
+const departamentos = ref([
+  { 
+    id: 'santa-cruz', 
+    nombre: 'Santa Cruz',
+    coordenadas: [-63.1887, -17.7833],
+    zoom: 12
+  },
+  { 
+    id: 'cochabamba', 
+    nombre: 'Cochabamba',
+    coordenadas: [-66.1568, -17.3895],
+    zoom: 12
+  }
+])
 
 const formData = ref({
   // Datos personales
@@ -42,7 +76,9 @@ const formData = ref({
   razon_social: '',
   nit: '',
 
-  notas: ''
+  notas: '',
+
+  departamento: '',
 })
 
 // Computed properties
@@ -52,76 +88,147 @@ const requiereComprobante = computed(() =>
   ['transferencia', 'qr'].includes(formData.value.tipo_pago)
 )
 
-// Métodos
-const initMap = () => {
-  mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN
+// Funciones del mapa
+const handleMapClick = (e) => {
+  const { lng, lat } = e.lngLat;
+  formData.value.coordenadas = { lng, lat };
+  createMarker({ lng, lat });
+  mostrarAlerta('Ubicación seleccionada correctamente', 'success');
+};
 
-  map.value = new mapboxgl.Map({
-    container: 'map',
-    style: 'mapbox://styles/mapbox/streets-v12',
-    center: [-63.1887, -17.7833], // Santa Cruz coordinates
-    zoom: 12
-  })
+const createMarker = (coords) => {
+  if (marker.value) {
+    marker.value.remove();
+  }
 
   marker.value = new mapboxgl.Marker({
-    draggable: true
+    draggable: true,
+    color: '#CF33D1',
+    scale: Math.max(0.5, Math.min(1.5, mapInstance.value.getZoom() / 12))
   })
+    .setLngLat([coords.lng, coords.lat])
+    .addTo(mapInstance.value);
 
-  map.value.on('click', (e) => {
-    const { lng, lat } = e.lngLat
-    marker.value.setLngLat([lng, lat]).addTo(map.value)
-    formData.value.coordenadas = { lng, lat }
-  })
+  // Manejar eventos del marcador
+  marker.value.on('dragend', (e) => {
+    const { lng, lat } = e.target.getLngLat();
+    formData.value.coordenadas = { lng, lat };
+    mostrarAlerta('Ubicación actualizada', 'success');
+  });
 
-  marker.value.on('dragend', () => {
-    const { lng, lat } = marker.value.getLngLat()
-    formData.value.coordenadas = { lng, lat }
-  })
-}
+  // Actualizar escala al hacer zoom
+  mapInstance.value.on('zoom', () => {
+    const scale = Math.max(0.5, Math.min(1.5, mapInstance.value.getZoom() / 12));
+    marker.value.setScale(scale);
+  });
+};
+
+const initMap = () => {
+  if (!formData.value.departamento) return;
+  
+  nextTick(() => {
+    const mapContainer = document.getElementById('map');
+    if (!mapContainer) return;
+
+    // Destruir mapa existente
+    if (mapInstance.value) {
+      mapInstance.value.remove();
+      marker.value = null;
+    }
+
+    mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
+    const departamento = departamentos.value.find(d => d.id === formData.value.departamento);
+
+    // Asegurarse que el contenedor del mapa tenga position relative
+    mapContainer.style.position = 'relative';
+    mapContainer.style.overflow = 'hidden';
+
+    mapInstance.value = new mapboxgl.Map({
+      container: 'map',
+      style: 'mapbox://styles/mapbox/streets-v12',
+      center: departamento.coordenadas,
+      zoom: departamento.zoom,
+      maxBounds: [
+        [-69.0, -23.0],
+        [-57.0, -9.0]
+      ]
+    });
+
+    // Esperar a que el mapa se cargue completamente
+    mapInstance.value.on('load', () => {
+      // Crear marcador
+      marker.value = new mapboxgl.Marker({
+        color: '#CF33D1',
+        draggable: false
+      })
+        .setLngLat(departamento.coordenadas)
+        .addTo(mapInstance.value);
+
+      // Actualizar posición del marcador al mover el mapa
+      mapInstance.value.on('move', () => {
+        marker.value.setLngLat(mapInstance.value.getCenter());
+      });
+    });
+  });
+};
 
 const handleFileUpload = (event) => {
   formData.value.comprobantePago = event.target.files[0]
 }
 
 const validarFormulario = () => {
-  if (!formData.value.nombre || !formData.value.apellidos || !formData.value.telefono) {
-    error.value = 'Por favor complete sus datos personales'
-    return false
+  const camposRequeridos = {
+    nombre: 'Nombre',
+    apellidos: 'Apellidos',
+    telefono: 'Teléfono',
+    email: 'Email'
+  };
+
+  for (const [campo, nombre] of Object.entries(camposRequeridos)) {
+    if (!formData.value[campo]) {
+      mostrarAlerta(`El campo ${nombre} es requerido`, 'error');
+      return false;
+    }
   }
 
-  if (isDelivery.value && !formData.value.direccion_entrega) {
-    error.value = 'Por favor ingrese la dirección de entrega'
-    return false
+  if (isDelivery.value) {
+    if (!formData.value.departamento) {
+      mostrarAlerta('Por favor seleccione un departamento', 'error');
+      return false;
+    }
+    if (!formData.value.direccion_entrega) {
+      mostrarAlerta('Por favor ingrese la dirección de entrega', 'error');
+      return false;
+    }
+    if (!formData.value.coordenadas) {
+      mostrarAlerta('Por favor seleccione un punto en el mapa', 'error');
+      return false;
+    }
+  } else if (!formData.value.sucursal_id) {
+    mostrarAlerta('Por favor seleccione una sucursal', 'error');
+    return false;
   }
 
-  if (isDelivery.value && !formData.value.coordenadas) {
-    error.value = 'Por favor seleccione la ubicación en el mapa'
-    return false
-  }
-
-  if (!isDelivery.value && !formData.value.sucursal_id) {
-    error.value = 'Por favor seleccione una sucursal'
-    return false
-  }
-
-  if (formData.value.requiere_factura && (!formData.value.razon_social || !formData.value.nit)) {
-    error.value = 'Por favor complete los datos de facturación'
-    return false
+  if (formData.value.requiere_factura) {
+    if (!formData.value.razon_social || !formData.value.nit) {
+      mostrarAlerta('Complete los datos de facturación', 'error');
+      return false;
+    }
   }
 
   if (requiereComprobante.value && !formData.value.comprobantePago) {
-    error.value = 'Por favor adjunte el comprobante de pago'
-    return false
+    mostrarAlerta('Por favor adjunte el comprobante de pago', 'error');
+    return false;
   }
 
-  return true
+  return true;
 }
 
 const enviarPedido = async () => {
-  if (!validarFormulario()) return
+  if (!validarFormulario()) return;
 
-  loading.value = true
-  error.value = null
+  loading.value = true;
+  error.value = null;
 
   try {
     const datosPedido = {
@@ -130,22 +237,20 @@ const enviarPedido = async () => {
         producto_id: item.id,
         cantidad: item.cantidad
       }))
-    }
+    };
 
-    await pedidoStore.crearPedido(datosPedido)
+    await pedidoStore.crearPedido(datosPedido);
+    mostrarAlerta('¡Pedido realizado con éxito!', 'success');
     
-    // Limpiar carrito
-    cartStore.clearCart()
-    
-    // Redirigir a confirmación
-    router.push('/pedido-confirmado')
+    cartStore.clearCart();
+    router.push('/pedido-confirmado');
   } catch (err) {
-    error.value = err.response?.data?.message || 'Error al procesar el pedido'
-    console.error('Error:', err)
+    mostrarAlerta(err.response?.data?.message || 'Error al procesar el pedido', 'error');
+    console.error('Error:', err);
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 
 const abrirWhatsapp = () => {
   const numero = '+59172220599'
@@ -166,18 +271,64 @@ const sucursales = ref([
   { id: 3, nombre: 'Sucursal Sur', ciudad: 'Cochabamba' }
 ])
 
+const cambiarUbicacionMapa = () => {
+  if (!formData.value.departamento) return;
+  
+  // Limpiar coordenadas anteriores
+  formData.value.coordenadas = null;
+  
+  // Reiniciar el mapa
+  initMap();
+};
+
+const guardarUbicacion = () => {
+  if (!mapInstance.value) return;
+  
+  const center = mapInstance.value.getCenter();
+  formData.value.coordenadas = {
+    lng: center.lng,
+    lat: center.lat
+  };
+  mostrarAlerta('¡Ubicación guardada correctamente!', 'success');
+};
+
+// Watchers y lifecycle hooks
+watch(() => formData.value.departamento, (newVal) => {
+  if (newVal) {
+    initMap();
+  }
+});
+
+onBeforeUnmount(() => {
+  if (mapInstance.value) {
+    mapInstance.value.remove();
+  }
+});
+
 onMounted(() => {
   if (cartStore.isEmpty) {
-    router.push('/cart')
-    return
+    router.push('/cart');
+    return;
   }
-  initMap()
-})
+  // No inicializamos el mapa aquí, esperamos a que se seleccione un departamento
+});
 </script>
 
 <template>
   <div class="flex flex-col min-h-screen">
     <Navbar />
+    
+    <div 
+      v-if="alerta.visible"
+      :class="{
+        'fixed top-20 right-4 p-4 rounded-lg shadow-lg z-50 transition-all duration-500': true,
+        'bg-green-100 text-green-700': alerta.tipo === 'success',
+        'bg-red-100 text-red-700': alerta.tipo === 'error',
+        'bg-blue-100 text-blue-700': alerta.tipo === 'info'
+      }"
+    >
+      {{ alerta.mensaje }}
+    </div>
     
     <main class="flex-grow bg-gray-50 py-8">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -281,6 +432,34 @@ onMounted(() => {
 
               <!-- Dirección y mapa (si es delivery) -->
               <div v-if="formData.tipo_entrega === 'delivery'" class="space-y-4 mb-6">
+                <!-- Aviso de disponibilidad -->
+                <div class="bg-blue-50 p-4 rounded-md text-blue-700 mb-4">
+                  <p class="text-sm">
+                    Por el momento, el servicio de delivery solo está disponible en Santa Cruz y Cochabamba.
+                  </p>
+                </div>
+
+                <!-- Selección de departamento -->
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Departamento
+                  </label>
+                  <select 
+                    v-model="formData.departamento"
+                    class="w-full border rounded-md p-2"
+                    @change="cambiarUbicacionMapa"
+                  >
+                    <option value="">Seleccione un departamento</option>
+                    <option 
+                      v-for="depto in departamentos" 
+                      :key="depto.id" 
+                      :value="depto.id"
+                    >
+                      {{ depto.nombre }}
+                    </option>
+                  </select>
+                </div>
+
                 <div>
                   <label class="block text-sm font-medium text-gray-700 mb-1">
                     Dirección
@@ -303,11 +482,23 @@ onMounted(() => {
                   ></textarea>
                 </div>
 
-                <div>
+                <div v-if="formData.departamento">
                   <label class="block text-sm font-medium text-gray-700 mb-2">
                     Ubicación en el mapa
                   </label>
-                  <div id="map" class="w-full h-64 rounded-lg"></div>
+                  <div id="map" class="w-full h-96 rounded-lg border-2 border-gray-200"></div>
+                </div>
+
+                <div class="mt-4">
+                  <button
+                    @click="guardarUbicacion"
+                    class="w-full bg-[#CF33D1] text-white py-3 px-4 rounded-lg hover:bg-opacity-90 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    Guardar Ubicación
+                  </button>
                 </div>
               </div>
             </div>
@@ -372,7 +563,7 @@ onMounted(() => {
                   >
                     <span>Enviar por WhatsApp</span>
                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.153 23.486l4.452-2.131A11.955 11.955 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.615 0-5.026-.864-6.971-2.316l-.438-.293-3.307 1.583 1.583-3.307-.293-.438A9.958 9.958 0 012 12c0-5.514 4.486-10 10-10s10 4.486 10 10-4.486 10-10 10zm5.778-13.889l-1.389-.389c-.188-.053-.389.063-.486.234l-.903 1.5c-.097.172-.097.389 0 .561.097.172.292.281.486.234l1.389-.389c.188-.053.389.063.486.234l.903 1.5c.097.172.097.389 0 .561-.097.172-.292.281-.486.234l-1.389-.389c-.188-.053-.389.063-.486.234l-.903 1.5c-.097.172-.097.389 0 .561.097.172.292.281.486.234l1.389-.389c.188-.053.389.063.486.234l.903 1.5c.097.172.097.389 0 .561-.097.172-.292.281-.486.234l-1.389-.389c-.188-.053-.389.063-.486.234l-.903 1.5c-.097.172-.097.389 0 .561.097.172.292.281.486.234l1.389-.389"></path>
+                      <path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.153 23.486l4.452-2.131A11.955 11.955 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.615 0-5.026-.864-6.971-2.316l-.438-.293-3.307 1.583 1.583-3.307-.293-.438A9.958 9.958 0 012 12c0-5.514 4.486-10 10-10s10 4.486 10 10-4.486 10-10 10zm5.778-13.889l-1.389-.389c-.188-.053-.389.063-.486.234l-.903 1.5c-.097.172-.097.389 0 .561.097.172.292.281.486.234l1.389-.389c.188-.053.389.063.486.234l.903 1.5c.097.172.097.389 0 .561-.097.172-.292.281-.486.234l-1.389-.389c-.188-.053-.389.063-.486.234l-.903 1.5c-.097.172-.097.389 0 .561.097.172.292.281.486.234l1.389-.389"></path>
                     </svg>
                   </button>
                 </div>
@@ -448,10 +639,40 @@ onMounted(() => {
 </template>
 
 <style>
-.mapboxgl-ctrl-geocoder {
+#map {
   width: 100% !important;
-  max-width: none !important;
-  margin-top: 10px;
+  height: 400px !important;
+  border-radius: 0.5rem;
+  border: 2px solid #e5e7eb;
+  position: relative !important;
+  overflow: hidden !important;
 }
 
+.mapboxgl-map {
+  position: absolute !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.mapboxgl-marker {
+  position: absolute !important;
+  z-index: 1 !important;
+  pointer-events: none !important;
+}
+
+.mapboxgl-canvas {
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.mapboxgl-ctrl-group {
+  margin: 10px !important;
+}
 </style> 
