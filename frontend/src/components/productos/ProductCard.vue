@@ -4,6 +4,7 @@ import { useCartStore } from '@/stores/cart'
 import { useAuthStore } from '@/stores/auth'
 import ProductosRecomendados from './ProductosRecomendados.vue'
 import { useRouter } from 'vue-router'
+import Swal from 'sweetalert2'
 
 const props = defineProps({
   producto: {
@@ -73,6 +74,22 @@ const addToCart = () => {
   })
   showQuantityModal.value = false
   cantidad.value = 1
+
+  // Mostrar alerta de éxito
+  Swal.fire({
+    title: '¡Producto agregado!',
+    text: 'El producto se añadió correctamente a tu carrito',
+    icon: 'success',
+    showCancelButton: true,
+    confirmButtonColor: '#33c7d1',
+    cancelButtonColor: '#FF1F6D',
+    confirmButtonText: 'Ver carrito',
+    cancelButtonText: 'Seguir comprando'
+  }).then((result) => {
+    if (result.isConfirmed) {
+      cartStore.toggleCart() // Abrir el panel del carrito
+    }
+  })
 }
 
 const updateCantidad = (value) => {
@@ -227,8 +244,10 @@ const selectRecomendado = () => {
           </svg>
         </button>
         <button 
+          @click="showQuantityModal = true"
           class="bg-[#33c7d1] text-white p-2 rounded-md hover:bg-[#2ba3ac] transition-all duration-300 
                  transform hover:scale-110 flex items-center justify-center"
+          v-if="producto.stock > 0"
         >
           <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -241,7 +260,7 @@ const selectRecomendado = () => {
   <!-- Modal de detalles -->
   <Teleport to="body">
     <Transition name="fade">
-      <div v-if="showModal" class="fixed inset-0 z-50 overflow-y-auto" role="dialog">
+      <div v-if="showModal" class="fixed inset-0 z-50 overflow-hidden" role="dialog">
         <!-- Overlay -->
         <div 
           class="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
@@ -251,7 +270,7 @@ const selectRecomendado = () => {
         <!-- Modal container -->
         <div class="flex min-h-screen items-center justify-center p-4">
           <div 
-            class="relative bg-white rounded-lg max-w-3xl w-full mx-auto shadow-xl transform transition-all"
+            class="relative bg-white rounded-lg max-w-3xl w-full mx-auto shadow-xl transform transition-all flex flex-col max-h-[90vh]"
             @click.stop
           >
             <!-- Modal header -->
@@ -269,8 +288,8 @@ const selectRecomendado = () => {
               </button>
             </div>
 
-            <!-- Modal content -->
-            <div class="p-6">
+            <!-- Modal content - Scrollable -->
+            <div class="flex-1 overflow-y-auto p-6">
               <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <!-- Imagen del producto -->
                 <div class="aspect-square rounded-lg overflow-hidden">
@@ -358,21 +377,26 @@ const selectRecomendado = () => {
               />
             </div>
 
-            <!-- Modal footer -->
-            <div class="flex items-center justify-end gap-3 p-4 border-t">
-              <button 
-                @click="closeAndNavigate"
-                class="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md transition-colors duration-200"
-              >
-                Cerrar
-              </button>
-              <button 
-                v-if="producto.stock > 0"
-                @click="showQuantityModal = true"
-                class="px-4 py-2 text-sm font-medium text-white bg-[#33c7d1] hover:bg-[#2ba3ac] rounded-md transition-colors duration-200"
-              >
-                Agregar al carrito
-              </button>
+            <!-- Modal footer - Fijo -->
+            <div class="border-t bg-white p-4 sticky bottom-0 left-0 right-0 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+              <div class="flex items-center justify-end gap-3">
+                <button 
+                  @click="closeAndNavigate"
+                  class="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md transition-colors duration-200"
+                >
+                  Cerrar
+                </button>
+                <button 
+                  v-if="producto.stock > 0"
+                  @click="showQuantityModal = true"
+                  class="px-6 py-2 text-sm font-medium text-white bg-[#33c7d1] hover:bg-[#2ba3ac] rounded-md transition-colors duration-200 flex items-center gap-2"
+                >
+                  <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                  Agregar al carrito
+                </button>
+              </div>
             </div>
           </div>
         </div>

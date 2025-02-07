@@ -9,6 +9,7 @@ import MapboxGeocoder from '@mapbox/mapbox-gl-geocoder'
 import '@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css'
 import Navbar from '@/components/landing/Navbar.vue'
 import Footer from '@/components/landing/Footer.vue'
+import { sucursales } from '@/data/sucursales'
 
 const router = useRouter()
 const cartStore = useCartStore()
@@ -43,13 +44,50 @@ const departamentos = ref([
     id: 'santa-cruz', 
     nombre: 'Santa Cruz',
     coordenadas: [-63.1887, -17.7833],
-    zoom: 12
+    zoom: 12,
+    tipoEntrega: 'local'
   },
   { 
     id: 'cochabamba', 
     nombre: 'Cochabamba',
     coordenadas: [-66.1568, -17.3895],
-    zoom: 12
+    zoom: 12,
+    tipoEntrega: 'local'
+  },
+  {
+    id: 'la-paz',
+    nombre: 'La Paz',
+    tipoEntrega: 'nacional'
+  },
+  {
+    id: 'oruro',
+    nombre: 'Oruro',
+    tipoEntrega: 'nacional'
+  },
+  {
+    id: 'potosi',
+    nombre: 'Potosí',
+    tipoEntrega: 'nacional'
+  },
+  {
+    id: 'tarija',
+    nombre: 'Tarija',
+    tipoEntrega: 'nacional'
+  },
+  {
+    id: 'chuquisaca',
+    nombre: 'Chuquisaca',
+    tipoEntrega: 'nacional'
+  },
+  {
+    id: 'beni',
+    nombre: 'Beni',
+    tipoEntrega: 'nacional'
+  },
+  {
+    id: 'pando',
+    nombre: 'Pando',
+    tipoEntrega: 'nacional'
   }
 ])
 
@@ -87,6 +125,12 @@ const isDelivery = computed(() => formData.value.tipo_entrega === 'delivery')
 const requiereComprobante = computed(() => 
   ['transferencia', 'qr'].includes(formData.value.tipo_pago)
 )
+
+// Computed para determinar si es envío nacional
+const isEnvioNacional = computed(() => {
+  const deptoSeleccionado = departamentos.value.find(d => d.id === formData.value.departamento)
+  return deptoSeleccionado?.tipoEntrega === 'nacional'
+})
 
 // Funciones del mapa
 const handleMapClick = (e) => {
@@ -265,11 +309,28 @@ const formatPrice = (price) => {
   }).format(price)
 }
 
-const sucursales = ref([
-  { id: 1, nombre: 'Sucursal Centro', ciudad: 'Santa Cruz' },
-  { id: 2, nombre: 'Sucursal Norte', ciudad: 'Santa Cruz' },
-  { id: 3, nombre: 'Sucursal Sur', ciudad: 'Cochabamba' }
-])
+const sucursalesPorDepartamento = computed(() => {
+  if (!formData.value.departamento) return []
+  
+  return sucursales.filter(sucursal => {
+    const departamento = formData.value.departamento.toLowerCase()
+    const nombreSucursal = sucursal.nombre.toLowerCase()
+    const direccionSucursal = sucursal.direccion.toLowerCase()
+    
+    if (departamento === 'santa-cruz') {
+      return nombreSucursal.includes('santa cruz') || direccionSucursal.includes('santa cruz')
+    }
+    
+    if (departamento === 'cochabamba') {
+      return nombreSucursal.includes('cochabamba') || 
+             nombreSucursal.includes('quillacollo') ||
+             direccionSucursal.includes('cochabamba') ||
+             direccionSucursal.includes('quillacollo')
+    }
+    
+    return false
+  })
+})
 
 const cambiarUbicacionMapa = () => {
   if (!formData.value.departamento) return;
@@ -295,7 +356,16 @@ const guardarUbicacion = () => {
 // Watchers y lifecycle hooks
 watch(() => formData.value.departamento, (newVal) => {
   if (newVal) {
-    initMap();
+    const deptoSeleccionado = departamentos.value.find(d => d.id === newVal);
+    if (deptoSeleccionado?.tipoEntrega === 'nacional') {
+      formData.value.tipo_entrega = 'nacional';
+      if (formData.value.tipo_pago === 'efectivo') {
+        formData.value.tipo_pago = 'qr';
+      }
+    }
+    if (!isEnvioNacional.value) {
+      initMap();
+    }
   }
 });
 
@@ -386,48 +456,70 @@ onMounted(() => {
               <div class="mb-6">
                 <h3 class="text-lg font-medium mb-4">Método de envío</h3>
                 <div class="space-y-4">
-                  <label class="flex items-center gap-2">
-                    <input 
-                      type="radio" 
-                      v-model="formData.tipo_entrega"
-                      value="tienda"
-                    />
-                    Recoger en tienda
-                  </label>
-                  <label class="flex items-center gap-2">
-                    <input 
-                      type="radio" 
-                      v-model="formData.tipo_entrega"
-                      value="delivery"
-                    />
-                    Delivery
-                  </label>
-                </div>
-              </div>
-
-              <!-- Sucursales (si es recoger en tienda) -->
-              <div v-if="formData.tipo_entrega === 'tienda'" class="mb-6">
-                <label class="block text-sm font-medium text-gray-700 mb-2">
-                  Seleccionar sucursal
-                </label>
-                <select 
-                  v-model="formData.sucursal_id"
-                  class="w-full border rounded-md p-2"
-                >
-                  <optgroup 
-                    v-for="ciudad in ['Cochabamba', 'Santa Cruz']"
-                    :key="ciudad"
-                    :label="ciudad"
-                  >
-                    <option 
-                      v-for="sucursal in sucursales.filter(s => s.ciudad === ciudad)"
-                      :key="sucursal.id"
-                      :value="sucursal.id"
+                  <!-- Selección de departamento -->
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                      Departamento
+                    </label>
+                    <select 
+                      v-model="formData.departamento"
+                      class="w-full border-gray-300 rounded-md shadow-sm"
+                      @change="cambiarUbicacionMapa"
                     >
-                      {{ sucursal.nombre }}
-                    </option>
-                  </optgroup>
-                </select>
+                      <option value="">Seleccione un departamento</option>
+                      <template v-for="depto in departamentos" :key="depto.id"> 
+                        <option :value="depto.id">{{ depto.nombre }}</option>
+                      </template>
+                    </select>
+                  </div>
+
+                  <!-- Aviso para envíos nacionales -->
+                  <div v-if="isEnvioNacional" class="bg-blue-50 p-4 rounded-lg">
+                    <div class="flex">
+                      <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div class="ml-3">
+                        <h3 class="text-sm font-medium text-blue-800">
+                          Información importante sobre envíos nacionales
+                        </h3>
+                        <div class="mt-2 text-sm text-blue-700">
+                          <ul class="list-disc pl-5 space-y-1">
+                            <li>El envío se realizará mediante transportadora</li>
+                            <li>Plazo de envío: 48 horas hábiles después de confirmar el pago</li>
+                            <li>Se le enviará la guía de envío por WhatsApp</li>
+                            <li>Disponible solo pago por QR o transferencia bancaria</li>
+                            <li>Se le contactará para coordinar los detalles del envío</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Opciones de entrega solo para envíos locales -->
+                  <div v-if="!isEnvioNacional">
+                    <!-- Aquí va el código existente de las opciones de entrega local -->
+                    <div class="space-y-4">
+                      <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                          Tipo de entrega
+                        </label>
+                        <div class="space-y-2">
+                          <div v-if="!isEnvioNacional" class="flex items-center">
+                            <input type="radio" v-model="formData.tipo_entrega" value="delivery" id="delivery" class="text-[#33c7d1]">
+                            <label for="delivery" class="ml-2">Delivery a domicilio</label>
+                          </div>
+                          <div v-if="!isEnvioNacional" class="flex items-center">
+                            <input type="radio" v-model="formData.tipo_entrega" value="sucursal" id="sucursal" class="text-[#33c7d1]">
+                            <label for="sucursal" class="ml-2">Recoger en sucursal</label>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <!-- Dirección y mapa (si es delivery) -->
@@ -438,28 +530,6 @@ onMounted(() => {
                     Por el momento, el servicio de delivery solo está disponible en Santa Cruz y Cochabamba.
                   </p>
                 </div>
-
-                <!-- Selección de departamento -->
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">
-                    Departamento
-                  </label>
-                  <select 
-                    v-model="formData.departamento"
-                    class="w-full border rounded-md p-2"
-                    @change="cambiarUbicacionMapa"
-                  >
-                    <option value="">Seleccione un departamento</option>
-                    <option 
-                      v-for="depto in departamentos" 
-                      :key="depto.id" 
-                      :value="depto.id"
-                    >
-                      {{ depto.nombre }}
-                    </option>
-                  </select>
-                </div>
-
                 <div>
                   <label class="block text-sm font-medium text-gray-700 mb-1">
                     Dirección
@@ -501,6 +571,57 @@ onMounted(() => {
                   </button>
                 </div>
               </div>
+
+              <!-- Lista de sucursales -->
+              <div v-if="formData.tipo_entrega === 'sucursal' && !isEnvioNacional" class="mt-4 space-y-4">
+                <div 
+                  v-for="sucursal in sucursalesPorDepartamento" 
+                  :key="sucursal.id"
+                  class="border rounded-lg p-4 hover:border-[#33c7d1] transition-colors"
+                  :class="{ 'border-[#33c7d1] bg-blue-50': formData.sucursal_id === sucursal.id }"
+                >
+                  <div class="flex items-start gap-3">
+                    <input
+                      type="radio"
+                      :id="'sucursal-' + sucursal.id"
+                      :value="sucursal.id"
+                      v-model="formData.sucursal_id"
+                      class="mt-1 text-[#33c7d1]"
+                    >
+                    <div class="flex-1">
+                      <label :for="'sucursal-' + sucursal.id" class="block font-medium">
+                        {{ sucursal.nombre }}
+                      </label>
+                      <p class="text-sm text-gray-600 mt-1">{{ sucursal.direccion }}</p>
+                      <p class="text-sm text-gray-600">{{ sucursal.horario }}</p>
+                      
+                      <div class="flex gap-3 mt-2">
+                        <a 
+                          :href="sucursal.mapsUrl" 
+                          target="_blank"
+                          class="inline-flex items-center text-sm text-blue-600 hover:text-blue-800"
+                        >
+                          <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 0C7.802 0 4 3.403 4 7.602C4 11.8 7.469 16.812 12 24C16.531 16.812 20 11.8 20 7.602C20 3.403 16.199 0 12 0ZM12 11C10.343 11 9 9.657 9 8C9 6.343 10.343 5 12 5C13.657 5 15 6.343 15 8C15 9.657 13.657 11 12 11Z"/>
+                          </svg>
+                          Ver ubicación
+                        </a>
+                        
+                        <a 
+                          :href="'https://wa.me/' + sucursal.telefono.replace(/[^0-9]/g, '')"
+                          target="_blank"
+                          class="inline-flex items-center text-sm text-green-600 hover:text-green-800"
+                        >
+                          <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.153 23.486l4.452-2.131A11.955 11.955 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0z"/>
+                          </svg>
+                          WhatsApp
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <!-- Método de pago -->
@@ -508,32 +629,30 @@ onMounted(() => {
               <h2 class="text-2xl font-bold mb-6">Método de pago</h2>
               
               <div class="space-y-4">
-                <label class="flex items-center gap-2">
-                  <input 
-                    type="radio" 
-                    v-model="formData.tipo_pago"
-                    value="efectivo"
-                  />
-                  Efectivo al momento de la entrega
+                <label class="block text-sm font-medium text-gray-700">
+                  Método de pago
                 </label>
-                
-                <label class="flex items-center gap-2">
-                  <input 
-                    type="radio" 
-                    v-model="formData.tipo_pago"
-                    value="transferencia"
-                  />
-                  Transferencia bancaria
-                </label>
-                
-                <label class="flex items-center gap-2">
-                  <input 
-                    type="radio" 
-                    v-model="formData.tipo_pago"
-                    value="qr"
-                  />
-                  Pago por QR
-                </label>
+                <div class="space-y-2">
+                  <div v-if="!isEnvioNacional" class="flex items-center">
+                    <input type="radio" v-model="formData.tipo_pago" value="efectivo" id="efectivo" class="text-[#33c7d1]">
+                    <label for="efectivo" class="ml-2">Efectivo</label>
+                  </div>
+                  <div class="flex items-center">
+                    <input type="radio" v-model="formData.tipo_pago" value="qr" id="qr" class="text-[#33c7d1]" :checked="isEnvioNacional">
+                    <label for="qr" class="ml-2">Pago QR</label>
+                  </div>
+                  <div class="flex items-center">
+                    <input type="radio" v-model="formData.tipo_pago" value="transferencia" id="transferencia" class="text-[#33c7d1]">
+                    <label for="transferencia" class="ml-2">Transferencia bancaria</label>
+                  </div>
+                </div>
+
+                <!-- Aviso adicional para envíos nacionales -->
+                <div v-if="isEnvioNacional && ['qr', 'transferencia'].includes(formData.tipo_pago)" class="mt-4 p-4 bg-yellow-50 rounded-lg">
+                  <p class="text-sm text-yellow-700">
+                    Una vez realizado el pago, por favor envíe el comprobante. El pedido será procesado y enviado después de confirmar el pago.
+                  </p>
+                </div>
               </div>
 
               <!-- Información de pago -->
@@ -609,22 +728,69 @@ onMounted(() => {
           </div>
 
           <!-- Resumen -->
-          <div class="w-full lg:w-80">
-            <div class="bg-white rounded-lg shadow p-6 sticky top-8">
+          <div class="w-full md:w-96">
+            <div class="bg-white rounded-lg shadow p-6" :style="{ top: '80px' }" style="position: sticky;">
               <h3 class="text-lg font-medium mb-4">Resumen del pedido</h3>
               
-              <div class="space-y-4">
-                <div class="flex justify-between">
+              <!-- Lista de productos -->
+              <div class="space-y-4 mb-6 max-h-[50vh] overflow-y-auto">
+                <div 
+                  v-for="item in cartStore.items" 
+                  :key="item.id"
+                  class="flex gap-3 py-3 border-b last:border-b-0"
+                >
+                  <img 
+                    :src="item.imagen_url" 
+                    :alt="item.nombre"
+                    class="w-16 h-16 object-cover rounded"
+                  />
+                  <div class="flex-1">
+                    <h4 class="text-sm font-medium line-clamp-2">{{ item.nombre }}</h4>
+                    <div class="flex items-center gap-2 mt-2">
+                      <div class="flex items-center gap-1">
+                        <button 
+                          @click="cartStore.updateQuantity(item.id, Math.max(1, item.cantidad - 1))"
+                          class="p-1 text-sm border rounded hover:bg-gray-50"
+                        >
+                          -
+                        </button>
+                        <span class="w-8 text-center text-sm">{{ item.cantidad }}</span>
+                        <button 
+                          @click="cartStore.updateQuantity(item.id, item.cantidad + 1)"
+                          class="p-1 text-sm border rounded hover:bg-gray-50"
+                        >
+                          +
+                        </button>
+                      </div>
+                      <span class="text-sm font-medium ml-auto">{{ formatPrice(item.precio * item.cantidad) }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Subtotal y botones -->
+              <div class="border-t pt-4 space-y-4">
+                <div class="flex justify-between items-center">
                   <span class="text-gray-600">Subtotal</span>
-                  <span class="font-medium">{{ formatPrice(total) }}</span>
+                  <span class="font-medium">{{ formatPrice(cartStore.subtotal) }}</span>
                 </div>
                 
-                <div class="border-t pt-4">
+                <div class="space-y-3">
                   <button
                     @click="enviarPedido"
                     class="w-full bg-[#33c7d1] text-white py-3 px-4 rounded-lg hover:bg-[#2ba3ac] transition-colors"
                   >
                     Finalizar pedido
+                  </button>
+
+                  <button
+                    @click="router.push('/productos')"
+                    class="w-full bg-white text-[#33c7d1] border-2 border-[#33c7d1] py-3 px-4 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                    </svg>
+                    Seguir comprando
                   </button>
                 </div>
               </div>
