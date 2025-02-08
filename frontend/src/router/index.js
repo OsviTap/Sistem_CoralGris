@@ -5,6 +5,8 @@ import ContactUs from '@/views/contact/ContactUs.vue'
 import RegisterBusiness from '@/views/register/RegisterBusiness.vue'
 import ProductosPage from '@/views/productos/ProductosPage.vue'
 import { useCartStore } from '@/stores/cart'
+import { useAuthStore } from '@/stores/auth'
+import { dashboardRoutes } from './dashboard.routes'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -61,9 +63,38 @@ const router = createRouter({
       path: '/pedido-confirmado',
       name: 'OrderConfirmation',
       component: () => import('@/views/checkout/OrderConfirmation.vue')
-    }
+    },
+    {
+      path: '/login',
+      name: 'Login',
+      component: () => import('@/views/auth/LoginView.vue')
+    },
+    dashboardRoutes
   ]
 });
+
+// Guardia de navegación para rutas protegidas
+router.beforeEach((to, from, next) => {
+  const authStore = useAuthStore()
+  const cartStore = useCartStore()
+
+  // Verificar si la ruta requiere autenticación
+  if (to.matched.some(record => record.meta.requiresAuth)) {
+    if (!authStore.isAuthenticated) {
+      next('/login')
+    } else if (to.matched.some(record => record.meta.requiresAdmin) && !authStore.isAdmin) {
+      next('/dashboard')
+    } else {
+      next()
+    }
+  } 
+  // Verificar si la ruta requiere carrito
+  else if (to.meta.requiresCart && cartStore.isEmpty) {
+    next('/cart')
+  } else {
+    next()
+  }
+})
 
 router.afterEach((to, from, failure) => {
   if (!failure) {
@@ -74,16 +105,5 @@ router.afterEach((to, from, failure) => {
     }, 100)
   }
 });
-
-// Guardia de navegación para checkout
-router.beforeEach((to, from, next) => {
-  const cartStore = useCartStore()
-  
-  if (to.meta.requiresCart && cartStore.isEmpty) {
-    next('/cart')
-  } else {
-    next()
-  }
-})
 
 export default router

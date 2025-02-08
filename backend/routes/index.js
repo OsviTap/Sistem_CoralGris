@@ -17,7 +17,7 @@ router.use('/productos', productoRoutes);
 router.use('/pedidos', pedidoRoutes);
 router.use('/categorias', categoriaRoutes);
 router.use('/content', contentRoutes);
-router.use('/users', userRoutes);
+router.use('/usuarios', userRoutes);
 router.use('/marcas', marcaRoutes);
 router.use('/consultas', consultaRoutes);
 

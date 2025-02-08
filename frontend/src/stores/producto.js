@@ -8,15 +8,15 @@ export const useProductoStore = defineStore('producto', {
     totalProductos: 0,
     paginaActual: 1,
     totalPaginas: 1,
-    filtros: {
-      categoria_id: null,
-      marca_id: null,
-      search: '',
-      orden: ''
-    },
     loading: false,
-    itemsPorPagina: 12,
     error: null,
+    filtros: {
+      categoria: null,
+      marca: null,
+      busqueda: '',
+      estado: 'todos'
+    },
+    itemsPorPagina: 12,
     productosRecomendados: [],
     loadingRecomendados: false,
     errorRecomendados: null,
@@ -31,16 +31,16 @@ export const useProductoStore = defineStore('producto', {
       
       try {
         console.log('Iniciando fetchProductos con params:', {
+          ...this.filtros,
           page: this.paginaActual,
-          limit: this.itemsPorPagina,
-          ...this.filtros
+          limit: this.itemsPorPagina
         })
 
         const response = await axios.get('/productos', {
           params: {
+            ...this.filtros,
             page: this.paginaActual,
-            limit: this.itemsPorPagina,
-            ...this.filtros
+            limit: this.itemsPorPagina
           }
         })
 
@@ -49,7 +49,7 @@ export const useProductoStore = defineStore('producto', {
         if (response.data?.productos) {
           this.productos = response.data.productos
           this.totalProductos = response.data.total || 0
-          this.totalPaginas = response.data.paginas || 1
+          this.totalPaginas = response.data.totalPaginas || 1
           console.log(`Cargados ${this.productos.length} productos`)
         } else {
           console.warn('La respuesta no contiene productos:', response.data)
@@ -71,26 +71,56 @@ export const useProductoStore = defineStore('producto', {
       }
     },
 
-    setFiltros(filtros) {
-      this.filtros = { ...this.filtros, ...filtros }
-      this.paginaActual = 1
-      this.fetchProductos()
+    async fetchProductoById(id) {
+      try {
+        const response = await axios.get(`/productos/${id}`)
+        return response.data
+      } catch (error) {
+        console.error('Error al obtener producto:', error)
+        throw error
+      }
+    },
+
+    async createProducto(productoData) {
+      try {
+        const response = await axios.post('/productos', productoData)
+        return response.data
+      } catch (error) {
+        console.error('Error al crear producto:', error)
+        throw error
+      }
+    },
+
+    async updateProducto(id, productoData) {
+      try {
+        const response = await axios.put(`/productos/${id}`, productoData)
+        return response.data
+      } catch (error) {
+        console.error('Error al actualizar producto:', error)
+        throw error
+      }
+    },
+
+    async deleteProducto(id) {
+      try {
+        await axios.delete(`/productos/${id}`)
+        this.productos = this.productos.filter(p => p.id !== id)
+      } catch (error) {
+        console.error('Error al eliminar producto:', error)
+        throw error
+      }
+    },
+
+    setFiltros(nuevosFiltros) {
+      this.filtros = {
+        ...this.filtros,
+        ...nuevosFiltros
+      }
+      this.paginaActual = 1 // Resetear paginación al filtrar
     },
 
     setPagina(pagina) {
       this.paginaActual = pagina
-      this.fetchProductos()
-    },
-
-    resetFiltros() {
-      this.filtros = {
-        categoria_id: null,
-        marca_id: null,
-        search: '',
-        orden: ''
-      }
-      this.paginaActual = 1
-      this.fetchProductos()
     },
 
     async fetchProductosRecomendados({ categoria_id, exclude_id, limit = 8 }) {
@@ -106,16 +136,6 @@ export const useProductoStore = defineStore('producto', {
       } catch (error) {
         console.error('Store: Error recomendados:', error);
         throw error;
-      }
-    },
-
-    async fetchProductoById(id) {
-      try {
-        const response = await axios.get(`/productos/${id}`)
-        return response.data.producto
-      } catch (error) {
-        console.error('Error al obtener producto:', error)
-        throw error
       }
     }
   },

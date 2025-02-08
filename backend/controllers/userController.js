@@ -140,9 +140,24 @@ const userController = {
   // Obtener perfil del usuario actual
   getProfile: async (req, res) => {
     try {
+      // Primero intentamos sin la relación para ver si ese es el problema
       const usuario = await Usuario.findByPk(req.usuario.id, {
-        include: [{ model: Sucursal }],
-        attributes: { exclude: ['password'] }
+        attributes: { 
+          exclude: ['password'],
+          include: [
+            'id',
+            'nombre',
+            'email',
+            'tipo_usuario',
+            'sucursal_id',
+            'telefono',
+            'empresa',
+            'ruc',
+            'direccion',
+            'nivel_precio',
+            'estado'
+          ]
+        }
       });
 
       if (!usuario) {
@@ -152,6 +167,54 @@ const userController = {
       res.json(usuario);
     } catch (error) {
       console.error('Error al obtener perfil:', error);
+      res.status(500).json({ message: 'Error en el servidor', error: error.message });
+    }
+  },
+
+  // Actualizar perfil del usuario
+  updateProfile: async (req, res) => {
+    try {
+      const {
+        nombre,
+        email,
+        telefono,
+        empresa,
+        ruc,
+        direccion
+      } = req.body;
+
+      const usuario = await Usuario.findByPk(req.usuario.id);
+      
+      if (!usuario) {
+        return res.status(404).json({ message: 'Usuario no encontrado' });
+      }
+
+      // Verificar si el email ya existe en otro usuario
+      if (email !== usuario.email) {
+        const emailExiste = await Usuario.findOne({ where: { email } });
+        if (emailExiste) {
+          return res.status(400).json({ message: 'El email ya está en uso' });
+        }
+      }
+
+      await usuario.update({
+        nombre,
+        email,
+        telefono,
+        empresa,
+        ruc,
+        direccion
+      });
+
+      // Obtener usuario actualizado con sus relaciones
+      const usuarioActualizado = await Usuario.findByPk(req.usuario.id, {
+        include: [{ model: Sucursal }],
+        attributes: { exclude: ['password'] }
+      });
+
+      res.json(usuarioActualizado);
+    } catch (error) {
+      console.error('Error al actualizar perfil:', error);
       res.status(500).json({ message: 'Error en el servidor' });
     }
   }

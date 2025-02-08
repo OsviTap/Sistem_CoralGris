@@ -1,102 +1,123 @@
 import { defineStore } from 'pinia'
-import axios from 'axios'
+import axios from '@/utils/axios'
+import { ref, computed } from 'vue'
 
-export const useAuthStore = defineStore('auth', {
-  state: () => ({
-    user: null,
-    token: localStorage.getItem('token') || null,
-    loading: false,
-    error: null
-  }),
+export const useAuthStore = defineStore('auth', () => {
+  const user = ref(null)
+  const token = ref(localStorage.getItem('token'))
+  const loading = ref(false)
+  const error = ref(null)
 
-  getters: {
-    isAuthenticated: (state) => !!state.token,
-    userNivelPrecio: (state) => state.user?.nivel_precio || 'L1'
-  },
+  const isAuthenticated = computed(() => !!token.value)
+  const isAdmin = computed(() => user.value?.tipo_usuario === 'administrador')
+  const isVendedor = computed(() => user.value?.tipo_usuario === 'vendedor')
+  const isCliente = computed(() => user.value?.tipo_usuario === 'cliente')
+  const canAccessDashboard = computed(() => ['administrador', 'vendedor'].includes(user.value?.tipo_usuario))
 
-  actions: {
-    async login(credentials) {
-      this.loading = true
-      this.error = null
-      try {
-        const response = await axios.post('/api/auth/login', credentials)
-        this.token = response.data.token
-        this.user = response.data.user
-        localStorage.setItem('token', this.token)
-        
-        // Configurar el token en axios para futuras peticiones
-        axios.defaults.headers.common['Authorization'] = `Bearer ${this.token}`
-      } catch (error) {
-        this.error = error.response?.data?.message || 'Error al iniciar sesión'
-        throw error
-      } finally {
-        this.loading = false
-      }
-    },
+  const login = async (credentials) => {
+    loading.value = true
+    error.value = null
 
-    async register(userData) {
-      this.loading = true
-      this.error = null
-      try {
-        const response = await axios.post('/api/auth/register', userData)
-        this.token = response.data.token
-        this.user = response.data.user
-        localStorage.setItem('token', this.token)
-        
-        axios.defaults.headers.common['Authorization'] = `Bearer ${this.token}`
-      } catch (error) {
-        this.error = error.response?.data?.message || 'Error al registrarse'
-        throw error
-      } finally {
-        this.loading = false
-      }
-    },
+    try {
+      const response = await axios.post('/auth/login', credentials)
+      user.value = response.data.usuario
+      token.value = response.data.token
+      
+      localStorage.setItem('token', token.value)
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
 
-    async logout() {
-      this.user = null
-      this.token = null
-      localStorage.removeItem('token')
-      delete axios.defaults.headers.common['Authorization']
-    },
-
-    async fetchUser() {
-      if (!this.token) return
-
-      this.loading = true
-      try {
-        const response = await axios.get('/api/auth/user')
-        this.user = response.data
-      } catch (error) {
-        this.error = error.response?.data?.message || 'Error al obtener datos del usuario'
-        // Si hay un error de autenticación, hacer logout
-        if (error.response?.status === 401) {
-          this.logout()
-        }
-        throw error
-      } finally {
-        this.loading = false
-      }
-    },
-
-    async updateProfile(userData) {
-      this.loading = true
-      try {
-        const response = await axios.put('/api/auth/profile', userData)
-        this.user = response.data
-      } catch (error) {
-        this.error = error.response?.data?.message || 'Error al actualizar perfil'
-        throw error
-      } finally {
-        this.loading = false
-      }
-    },
-
-    // Inicializar el store
-    init() {
-      if (this.token) {
-        axios.defaults.headers.common['Authorization'] = `Bearer ${this.token}`
-        this.fetchUser()
-      }
+      return { success: true, user: response.data.usuario }
+    } catch (err) {
+      error.value = err.response?.data?.message || 'Error en la autenticación'
+      return { success: false, error: error.value }
+    } finally {
+      loading.value = false
     }
+  }
+
+  const logout = () => {
+    user.value = null
+    token.value = null
+    localStorage.removeItem('token')
+    delete axios.defaults.headers.common['Authorization']
+  }
+
+  const register = async (userData) => {
+    loading.value = true
+    error.value = null
+
+    try {
+      const response = await axios.post('/usuarios/register', userData)
+      user.value = response.data.user
+      token.value = response.data.token
+      
+      localStorage.setItem('token', token.value)
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
+
+      return { success: true, user: response.data.user }
+    } catch (err) {
+      error.value = err.response?.data?.message || 'Error en el registro'
+      return { success: false, error: error.value }
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const fetchUser = async () => {
+    if (!token.value) return
+
+    loading.value = true
+    try {
+      const response = await axios.get('/usuarios/profile')
+      user.value = response.data
+    } catch (err) {
+      if (err.response?.status === 401) {
+        logout()
+      }
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const updateProfile = async (userData) => {
+    try {
+      const response = await axios.put('/usuarios/profile', userData)
+      user.value = response.data
+    } catch (error) {
+      console.error('Error al actualizar perfil:', error)
+      throw error
+    }
+  }
+
+  const init = () => {
+    if (token.value) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
+      fetchUser()
+    }
+  }
+
+  // Inicializar el token en axios si existe
+  if (token.value) {
+    axios.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
+    fetchUser()
+  }
+
+  return {
+    user,
+    token,
+    loading,
+    error,
+    isAuthenticated,
+    isAdmin,
+    isVendedor,
+    isCliente,
+    canAccessDashboard,
+    login,
+    logout,
+    register,
+    fetchUser,
+    updateProfile,
+    init
   }
 }) 

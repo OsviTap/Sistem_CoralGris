@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import axios from 'axios'
+import axios from '../utils/axios'
 import { useAuthStore } from './auth'
 
 export const usePedidoStore = defineStore('pedido', {
@@ -30,14 +30,10 @@ export const usePedidoStore = defineStore('pedido', {
       this.success = false
 
       try {
-        // Determinar si usar la ruta autenticada o de invitado
         const endpoint = authStore.isAuthenticated ? '/api/pedidos' : '/api/pedidos/guest'
-        
         const response = await axios.post(endpoint, datosPedido)
-
         this.pedidoActual = response.data.pedido
         this.success = true
-
         return response.data
       } catch (error) {
         console.error('Error al crear pedido:', error)
@@ -70,9 +66,11 @@ export const usePedidoStore = defineStore('pedido', {
           porPagina: this.paginacion.porPagina,
           totalPaginas: response.data.paginas
         }
+        return this.pedidos
       } catch (error) {
         console.error('Error al obtener pedidos:', error)
         this.error = error.response?.data?.message || 'Error al cargar los pedidos'
+        throw error
       } finally {
         this.loading = false
       }
@@ -106,7 +104,7 @@ export const usePedidoStore = defineStore('pedido', {
         ...this.filtros,
         ...nuevosFiltros
       }
-      this.paginacion.pagina = 1 // Reset página al filtrar
+      this.paginacion.pagina = 1
       return this.obtenerPedidos()
     },
 
@@ -124,13 +122,11 @@ export const usePedidoStore = defineStore('pedido', {
           estado: nuevoEstado
         })
 
-        // Actualizar el pedido en la lista
         const index = this.pedidos.findIndex(p => p.id === pedidoId)
         if (index !== -1) {
           this.pedidos[index] = response.data.pedido
         }
 
-        // Si es el pedido actual, actualizarlo también
         if (this.pedidoActual?.id === pedidoId) {
           this.pedidoActual = response.data.pedido
         }
@@ -174,7 +170,6 @@ export const usePedidoStore = defineStore('pedido', {
         if (state.filtros.estado && pedido.estado !== state.filtros.estado) {
           return false
         }
-        // Agregar más lógica de filtrado si es necesario
         return true
       })
     }

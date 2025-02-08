@@ -178,11 +178,45 @@
 
               <!-- Iconos -->
               <div class="flex items-center gap-4">
-                <a href="#" class="text-gray-600 hover:text-[#CF33D1] transition-colors">
-                  <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-                  </svg>
-                </a>
+                <div class="relative">
+                  <button 
+                    @click="handleLoginClick"
+                    class="text-gray-600 hover:text-[#CF33D1] transition-colors"
+                  >
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                    </svg>
+                  </button>
+
+                  <!-- Menú desplegable de usuario -->
+                  <div v-if="showUserMenu" class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1">
+                    <div v-if="authStore.isAuthenticated" class="px-4 py-2 text-sm text-gray-700 border-b">
+                      {{ authStore.user?.nombre }}
+                    </div>
+                    <template v-if="authStore.isAuthenticated">
+                      <button
+                        v-if="authStore.canAccessDashboard"
+                        @click="irADashboard"
+                        class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        Panel de Control
+                      </button>
+                      <button
+                        @click="handleLogout"
+                        class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        Cerrar Sesión
+                      </button>
+                    </template>
+                    <button
+                      v-else
+                      @click="handleLoginClick"
+                      class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    >
+                      Iniciar Sesión
+                    </button>
+                  </div>
+                </div>
                 <button 
                   @click="toggleCart"
                   class="text-gray-600 hover:text-[#CF33D1] transition-colors relative"
@@ -212,11 +246,45 @@
               </button>
 
               <!-- Iconos de usuario y carrito -->
-              <a href="#" class="text-gray-600 hover:text-[#CF33D1] transition-colors">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-                </svg>
-              </a>
+              <div class="relative">
+                <button 
+                  @click="handleLoginClick"
+                  class="text-gray-600 hover:text-[#CF33D1] transition-colors"
+                >
+                  <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                  </svg>
+                </button>
+
+                <!-- Menú desplegable de usuario -->
+                <div v-if="showUserMenu" class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1">
+                  <div v-if="authStore.isAuthenticated" class="px-4 py-2 text-sm text-gray-700 border-b">
+                    {{ authStore.user?.nombre }}
+                  </div>
+                  <template v-if="authStore.isAuthenticated">
+                    <button
+                      v-if="authStore.canAccessDashboard"
+                      @click="irADashboard"
+                      class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    >
+                      Panel de Control
+                    </button>
+                    <button
+                      @click="handleLogout"
+                      class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    >
+                      Cerrar Sesión
+                    </button>
+                  </template>
+                  <button
+                    v-else
+                    @click="handleLoginClick"
+                    class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    Iniciar Sesión
+                  </button>
+                </div>
+              </div>
               <button 
                 @click="toggleCart"
                 class="text-gray-600 hover:text-[#CF33D1] transition-colors relative"
@@ -297,7 +365,10 @@
 <div>
   <CartPanel />
 </div>
-  
+<PostLoginModal 
+  v-if="showPostLoginModal" 
+  @close="showPostLoginModal = false"
+/>
 </template>
 
 <script setup>
@@ -308,7 +379,10 @@ import { useCartStore } from '@/stores/cart'
 import { useAuthStore } from '@/stores/auth'
 import CartPanel from '../cart/CartPanel.vue'
 import 'preline'
+import { useRouter } from 'vue-router'
+import PostLoginModal from '@/components/auth/PostLoginModal.vue'
 
+const router = useRouter()
 const showMobileSearch = ref(false)
 const searchInput = ref(null)
 const categoriaStore = useCategoriaStore()
@@ -317,6 +391,8 @@ const cartStore = useCartStore()
 const authStore = useAuthStore()
 const isOpen = ref(false)
 const isLoading = ref(true)
+const showPostLoginModal = ref(false)
+const showUserMenu = ref(false)
 
 const toggleMobileSearch = async () => {
   showMobileSearch.value = !showMobileSearch.value
@@ -352,6 +428,31 @@ const toggleCart = () => {
   cartStore.toggleCart()
 }
 
+const handleLoginClick = () => {
+  if (!authStore.isAuthenticated) {
+    router.push('/login')
+  } else if (authStore.canAccessDashboard) {
+    showPostLoginModal.value = true
+  } else {
+    router.push('/productos')
+  }
+}
+
+const handleLogout = async () => {
+  showUserMenu.value = false
+  await authStore.logout()
+  router.push('/')
+}
+
+const toggleUserMenu = () => {
+  showUserMenu.value = !showUserMenu.value
+}
+
+const irADashboard = () => {
+  showUserMenu.value = false
+  router.push('/dashboard')
+}
+
 onMounted(async () => {
   try {
     await Promise.all([
@@ -380,6 +481,14 @@ onMounted(async () => {
       if (!isClickInside) {
         showMobileSearch.value = false
       }
+    }
+  })
+
+  // Cerrar el menú cuando se hace clic fuera
+  document.addEventListener('click', (event) => {
+    const userMenu = document.querySelector('#user-menu')
+    if (!userMenu?.contains(event.target)) {
+      showUserMenu.value = false
     }
   })
 })
