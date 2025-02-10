@@ -42,7 +42,7 @@ if (!authStore.canAccessDashboard) {
           <router-link 
             to="/dashboard" 
             class="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
-            active-class="bg-[#33c7d1] text-white"
+            exact-active-class="bg-[#33c7d1] text-white"
           >
             <span>Dashboard</span>
           </router-link>
@@ -51,7 +51,7 @@ if (!authStore.canAccessDashboard) {
             v-if="authStore.isAdmin"
             to="/dashboard/usuarios" 
             class="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
-            active-class="bg-[#33c7d1] text-white"
+            exact-active-class="bg-[#33c7d1] text-white"
           >
             <span>Usuarios</span>
           </router-link>
@@ -59,15 +59,24 @@ if (!authStore.canAccessDashboard) {
           <router-link 
             to="/dashboard/productos" 
             class="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
-            active-class="bg-[#33c7d1] text-white"
+            exact-active-class="bg-[#33c7d1] text-white"
           >
             <span>Productos</span>
           </router-link>
 
           <router-link 
+            to="/dashboard/productos/interes" 
+            class="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+            exact-active-class="bg-[#33c7d1] text-white"
+          >
+            <i class="fas fa-chart-line mr-2"></i>
+            <span>Productos con Interés</span>
+          </router-link>
+
+          <router-link 
             to="/dashboard/pedidos" 
             class="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
-            active-class="bg-[#33c7d1] text-white"
+            exact-active-class="bg-[#33c7d1] text-white"
           >
             <span>Pedidos</span>
           </router-link>

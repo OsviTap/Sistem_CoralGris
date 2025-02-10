@@ -1,15 +1,14 @@
-import DashboardLayout from '@/layouts/DashboardLayout.vue'
-import { useAuthStore } from '@/stores/auth'
+import { defineAsyncComponent } from 'vue'
 
 export const dashboardRoutes = {
   path: '/dashboard',
-  component: DashboardLayout,
+  component: () => import('../layouts/DashboardLayout.vue'),
   meta: { requiresAuth: true },
   children: [
     {
       path: '',
       name: 'Dashboard',
-      component: () => import('@/views/dashboard/DashboardHome.vue'),
+      component: () => import('../views/dashboard/DashboardHome.vue')
     },
     {
       path: 'productos',
@@ -28,6 +27,22 @@ export const dashboardRoutes = {
       props: true
     },
     {
+      path: 'productos/promociones',
+      name: 'GestionPromociones',
+      component: () => import('@/views/dashboard/productos/GestionPromociones.vue'),
+      meta: { requiresAdmin: true }
+    },
+    {
+      path: 'productos/interes',
+      name: 'productos-interes',
+      component: () => import('@/views/dashboard/productos/ProductosInteres.vue'),
+      meta: {
+        requiresAuth: true,
+        requiresAdmin: true,
+        title: 'Productos con Interés'
+      }
+    },
+    {
       path: 'pedidos',
       name: 'DashboardPedidos',
       component: () => import('@/views/dashboard/pedidos/PedidosLista.vue'),
@@ -40,8 +55,20 @@ export const dashboardRoutes = {
     },
     {
       path: 'usuarios',
-      name: 'DashboardUsuarios',
-      component: () => import('@/views/dashboard/usuarios/UsuariosLista.vue'),
+      name: 'UsuariosLista',
+      component: () => import('../views/dashboard/usuarios/UsuariosLista.vue'),
+      meta: { requiresAdmin: true }
+    },
+    {
+      path: 'usuarios/crear',
+      name: 'CrearUsuario',
+      component: () => import('../views/dashboard/usuarios/CrearUsuario.vue'),
+      meta: { requiresAdmin: true }
+    },
+    {
+      path: 'usuarios/:id/editar',
+      name: 'EditarUsuario',
+      component: () => import('../views/dashboard/usuarios/EditarUsuario.vue'),
       meta: { requiresAdmin: true }
     }
   ]

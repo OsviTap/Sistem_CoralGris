@@ -1,6 +1,7 @@
 const { Usuario, Sucursal } = require('../models');
 const bcrypt = require('bcryptjs');
 const { Op } = require('sequelize');
+const { sendEmail } = require('../config/email');
 
 const userController = {
   // Obtener usuarios con filtros
@@ -50,64 +51,65 @@ const userController = {
     }
   },
 
+  // Obtener un usuario por ID
+  getById: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const usuario = await Usuario.findByPk(id, {
+        include: [{ 
+          model: Sucursal,
+          attributes: ['id', 'nombre']
+        }],
+        attributes: { exclude: ['password'] }
+      });
+
+      if (!usuario) {
+        return res.status(404).json({ message: 'Usuario no encontrado' });
+      }
+
+      res.json(usuario);
+    } catch (error) {
+      console.error('Error al obtener usuario:', error);
+      res.status(500).json({ message: 'Error al obtener el usuario' });
+    }
+  },
+
   // Actualizar usuario
   updateUser: async (req, res) => {
     try {
       const { id } = req.params;
-      const {
-        nombre,
-        email,
-        telefono,
-        empresa,
-        ruc,
-        direccion,
-        nivel_precio,
-        sucursal_id,
-        estado,
-        password
-      } = req.body;
+      const updateData = { ...req.body };
+
+      // Si hay password, encriptarlo
+      if (updateData.password) {
+        updateData.password = await bcrypt.hash(updateData.password, 10);
+      } else {
+        delete updateData.password;
+      }
 
       const usuario = await Usuario.findByPk(id);
       if (!usuario) {
         return res.status(404).json({ message: 'Usuario no encontrado' });
       }
 
-      // Verificar si el email ya existe en otro usuario
-      if (email !== usuario.email) {
-        const emailExiste = await Usuario.findOne({ where: { email } });
-        if (emailExiste) {
-          return res.status(400).json({ message: 'El email ya está en uso' });
-        }
-      }
-
-      const updateData = {
-        nombre,
-        email,
-        telefono,
-        empresa,
-        ruc,
-        direccion,
-        nivel_precio,
-        sucursal_id,
-        estado
-      };
-
-      // Si se proporciona nueva contraseña, hashearla
-      if (password) {
-        updateData.password = await bcrypt.hash(password, 10);
-      }
-
       await usuario.update(updateData);
 
+      // Obtener usuario actualizado con sus relaciones
       const usuarioActualizado = await Usuario.findByPk(id, {
-        include: [{ model: Sucursal }],
+        include: [{ 
+          model: Sucursal,
+          attributes: ['id', 'nombre']
+        }],
         attributes: { exclude: ['password'] }
       });
 
       res.json(usuarioActualizado);
     } catch (error) {
       console.error('Error al actualizar usuario:', error);
-      res.status(500).json({ message: 'Error en el servidor' });
+      res.status(500).json({ 
+        message: 'Error al actualizar el usuario',
+        error: error.message 
+      });
     }
   },
 
@@ -217,7 +219,153 @@ const userController = {
       console.error('Error al actualizar perfil:', error);
       res.status(500).json({ message: 'Error en el servidor' });
     }
-  }
+  },
+
+  // Actualizar estado del usuario
+  updateEstado: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { estado } = req.body;
+
+      if (!['activo', 'inactivo'].includes(estado)) {
+        return res.status(400).json({ 
+          message: 'Estado inválido. Debe ser "activo" o "inactivo"' 
+        });
+      }
+
+      const usuario = await Usuario.findByPk(id);
+      
+      if (!usuario) {
+        return res.status(404).json({ 
+          message: 'Usuario no encontrado' 
+        });
+      }
+
+      await usuario.update({ estado });
+
+      // Excluir el password de la respuesta
+      const usuarioResponse = usuario.toJSON();
+      delete usuarioResponse.password;
+
+      res.json(usuarioResponse);
+    } catch (error) {
+      console.error('Error al actualizar estado del usuario:', error);
+      res.status(500).json({ 
+        message: 'Error al actualizar el estado del usuario' 
+      });
+    }
+  },
+
+  // Crear usuario desde el panel de administración
+  createUser: async (req, res) => {
+    try {
+      const { 
+        nombre, 
+        email, 
+        password,
+        tipo_usuario,
+        empresa,
+        ruc,
+        telefono,
+        direccion,
+        nivel_precio,
+        sucursal_id,
+        estado = 'activo'
+      } = req.body;
+
+      // Validar campos requeridos
+      if (!nombre || !email || !password) {
+        return res.status(400).json({ 
+          message: 'Nombre, email y password son requeridos' 
+        });
+      }
+
+      // Verificar si el email ya existe
+      const usuarioExiste = await Usuario.findOne({ where: { email } });
+      if (usuarioExiste) {
+        return res.status(400).json({ 
+          message: 'El email ya está registrado' 
+        });
+      }
+
+      // Encriptar password
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      // Crear usuario
+      const usuario = await Usuario.create({
+        nombre,
+        email,
+        password: hashedPassword,
+        tipo_usuario,
+        empresa,
+        ruc,
+        telefono,
+        direccion,
+        nivel_precio,
+        sucursal_id,
+        estado
+      });
+
+      // Obtener usuario creado con sus relaciones
+      const usuarioCreado = await Usuario.findByPk(usuario.id, {
+        include: [{ 
+          model: Sucursal,
+          attributes: ['id', 'nombre']
+        }],
+        attributes: { exclude: ['password'] }
+      });
+
+      res.status(201).json(usuarioCreado);
+    } catch (error) {
+      console.error('Error al crear usuario:', error);
+      res.status(500).json({ 
+        message: 'Error al crear el usuario',
+        error: error.message 
+      });
+    }
+  },
+
+  sendCredentials: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { email } = req.body;
+
+      // Buscar usuario
+      const usuario = await Usuario.findByPk(id);
+      if (!usuario) {
+        return res.status(404).json({ message: 'Usuario no encontrado' });
+      }
+
+      // Generar nueva contraseña
+      const newPassword = `CG${usuario.nombre.substring(0, 3)}${Math.random().toString(36).substring(2, 6)}`;
+      
+      // Hashear y actualizar contraseña en la base de datos
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      await usuario.update({ password: hashedPassword });
+
+      // Enviar email con las nuevas credenciales
+      await sendEmail({
+        to: email,
+        subject: 'Tus credenciales de acceso - Coral Gris',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h1 style="color: #333; text-align: center;">Credenciales de Acceso</h1>
+            <p>Tus credenciales de acceso al sistema son:</p>
+            <div style="background-color: #f5f5f5; padding: 20px; border-radius: 5px; margin: 20px 0;">
+              <p><strong>Usuario:</strong> ${email}</p>
+              <p><strong>Contraseña:</strong> ${newPassword}</p>
+            </div>
+            <p>Por seguridad, te recomendamos cambiar tu contraseña después de iniciar sesión.</p>
+          </div>
+        `
+      });
+
+      res.json({ message: 'Credenciales enviadas exitosamente' });
+    } catch (error) {
+      console.error('Error:', error);
+      res.status(500).json({ message: 'Error al enviar credenciales' });
+    }
+  },
 };
 
 module.exports = userController;

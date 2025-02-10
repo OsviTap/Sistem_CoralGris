@@ -3,6 +3,8 @@ const supabase = require('../config/supabase');
 const { Op, Sequelize } = require('sequelize');
 const recommendationService = require('../services/recommendationService');
 const fpGrowth = require('node-fpgrowth');
+const sequelize = require('../config/database');
+const ProductoInteres = require('../models/ProductoInteres');
 
 const productoController = {
   // Obtener productos con filtros y paginación
@@ -346,6 +348,143 @@ const productoController = {
       console.error('Error al obtener producto por ID:', error);
       res.status(500).json({ 
         message: 'Error al obtener el producto',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  },
+
+  // Actualizar estado del producto
+  updateProductoEstado: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { estado, agotado } = req.body;
+
+      const producto = await Producto.findByPk(id);
+      
+      if (!producto) {
+        return res.status(404).json({ 
+          message: 'Producto no encontrado' 
+        });
+      }
+
+      // Actualizar solo los campos de estado
+      await producto.update({
+        estado,
+        agotado
+      });
+
+      const productoActualizado = await Producto.findByPk(id, {
+        include: [
+          { model: Categoria, as: 'categoria' },
+          { model: Marca, as: 'marca' },
+          { model: ColorProducto, as: 'colores' }
+        ]
+      });
+
+      res.json({
+        producto: productoActualizado,
+        message: 'Estado del producto actualizado exitosamente'
+      });
+
+    } catch (error) {
+      console.error('Error al actualizar estado del producto:', error);
+      res.status(500).json({ 
+        message: 'Error al actualizar el estado del producto',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  },
+
+  // Registrar interés
+  registrarInteres: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const clienteIP = req.ip;
+      
+      // Verificar si ya registró interés en las últimas 24 horas
+      const interesReciente = await ProductoInteres.findOne({
+        where: {
+          producto_id: id,
+          ip_cliente: clienteIP,
+          created_at: {
+            [Op.gte]: new Date(Date.now() - 24 * 60 * 60 * 1000)
+          }
+        }
+      });
+
+      if (interesReciente) {
+        return res.status(429).json({
+          message: 'Ya has registrado tu interés por este producto recientemente'
+        });
+      }
+
+      // Registrar nuevo interés
+      await ProductoInteres.create({
+        producto_id: id,
+        ip_cliente: clienteIP
+      });
+
+      // Obtener el total de registros únicos para este producto
+      const totalInteres = await ProductoInteres.count({
+        where: { 
+          producto_id: id,
+          created_at: {
+            [Op.gte]: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // últimos 30 días
+          }
+        },
+        distinct: true,
+        col: 'ip_cliente'
+      });
+
+      res.json({
+        message: 'Interés registrado exitosamente',
+        total_interesados: totalInteres
+      });
+    } catch (error) {
+      console.error('Error al registrar interés:', error);
+      res.status(500).json({ 
+        message: 'Error al registrar interés',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  },
+
+  getProductosConInteres: async (req, res) => {
+    try {
+      const productos = await Producto.findAll({
+        where: {
+          estado: 'inactivo'
+        },
+        include: [
+          { 
+            model: ProductoInteres,
+            as: 'interes',
+            attributes: ['contador']
+          },
+          { 
+            model: Categoria,
+            as: 'categoria'
+          },
+          {
+            model: Marca,
+            as: 'marca'
+          }
+        ],
+        order: [
+          [sequelize.col('interes.contador'), 'DESC']
+        ]
+      });
+
+      const productosFormateados = productos.map(producto => ({
+        ...producto.toJSON(),
+        interes_count: producto.interes?.contador || 0
+      }));
+
+      res.json(productosFormateados);
+    } catch (error) {
+      console.error('Error al obtener productos con interés:', error);
+      res.status(500).json({ 
+        message: 'Error al obtener productos con interés',
         error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }

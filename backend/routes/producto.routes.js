@@ -26,4 +26,18 @@ router.put('/:id',
   productoController.updateProducto
 );
 
+router.put('/:id/estado',
+  authMiddleware,
+  adminMiddleware,
+  productoController.updateProductoEstado
+);
+
+// Rutas para el interés en productos
+router.post('/:id/interes', productoController.registrarInteres);
+router.get('/sin-stock/interes', 
+  authMiddleware, 
+  adminMiddleware, 
+  productoController.getProductosConInteres
+);
+
 module.exports = router;

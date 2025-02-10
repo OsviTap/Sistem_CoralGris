@@ -17,9 +17,27 @@ router.get('/',
   userController.getUsers
 );
 
+router.get('/:id',
+  adminMiddleware,
+  userController.getById
+);
+
 router.put('/:id',
   adminMiddleware,
   userController.updateUser
 );
+
+router.put('/:id/estado',
+  adminMiddleware,
+  userController.updateEstado
+);
+
+router.post('/',
+  authMiddleware,
+  adminMiddleware,
+  userController.createUser
+);
+
+router.post('/:id/send-credentials', authMiddleware, adminMiddleware, userController.sendCredentials)
 
 module.exports = router;

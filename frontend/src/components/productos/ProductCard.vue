@@ -5,6 +5,9 @@ import { useAuthStore } from '@/stores/auth'
 import ProductosRecomendados from './ProductosRecomendados.vue'
 import { useRouter } from 'vue-router'
 import Swal from 'sweetalert2'
+import { useProductoStore } from '@/stores/producto'
+import { useShare } from '@vueuse/core'
+import SocialSharing from 'vue3-social-sharing'
 
 const props = defineProps({
   producto: {
@@ -30,6 +33,15 @@ const authStore = useAuthStore()
 const cantidad = ref(1)
 const showQuantityModal = ref(false)
 const router = useRouter()
+const productoStore = useProductoStore()
+const { share, isSupported } = useShare()
+
+const shareUrl = computed(() => {
+  if (typeof window !== 'undefined') {
+    return `${window.location.origin}/productos/${props.producto.id}`
+  }
+  return ''
+})
 
 // Computed properties para precios
 const precioNormal = computed(() => {
@@ -103,6 +115,7 @@ const showModal = ref(false)
 const openModal = () => {
   showModal.value = true
   document.body.style.overflow = 'hidden'
+  registrarInteresAutomatico()
 }
 
 const closeAndNavigate = () => {
@@ -123,33 +136,156 @@ const closeAndNavigate = () => {
 const selectRecomendado = () => {
   closeAndNavigate()
 }
+
+const getPrecioSegunNivel = computed(() => {
+  const nivel = props.nivelPrecio.toLowerCase()
+  return props.producto[`precio_${nivel}`] || props.producto.precio_l1
+})
+
+const registrarInteres = async () => {
+  try {
+    await productoStore.registrarInteresProducto(props.producto.id)
+    Swal.fire({
+      title: '¡Gracias por tu interés!',
+      text: 'Te notificaremos cuando el producto esté disponible',
+      icon: 'success',
+      confirmButtonColor: '#33c7d1'
+    })
+  } catch (error) {
+    if (error.response?.status === 429) {
+      Swal.fire({
+        title: 'Interés ya registrado',
+        text: error.response.data.message,
+        icon: 'info',
+        confirmButtonColor: '#33c7d1'
+      })
+    } else {
+      console.error('Error al registrar interés:', error)
+      Swal.fire({
+        title: 'Error',
+        text: 'No se pudo registrar tu interés',
+        icon: 'error',
+        confirmButtonColor: '#d33'
+      })
+    }
+  }
+}
+
+const registrarInteresAutomatico = () => {
+  if (props.producto.estado === 'inactivo' && showModal.value) {
+    setTimeout(async () => {
+      try {
+        await productoStore.registrarInteresProducto(props.producto.id)
+      } catch (error) {
+        // Silenciosamente ignoramos errores de registro previo
+        if (!error.response?.status === 429) {
+          console.error('Error al registrar interés automático:', error)
+        }
+      }
+    }, 30000) // 30 segundos
+  }
+}
+
+const abrirCompartir = async () => {
+  const shareData = {
+    title: props.producto.nombre,
+    text: props.producto.descripcion || `¡Mira este producto en nuestra tienda! ${props.producto.nombre}`,
+    url: shareUrl.value,
+  }
+
+  try {
+    if (isSupported.value) {
+      // Usar API nativa de compartir
+      await share(shareData)
+    } else {
+      // Fallback para navegadores que no soportan la API Share
+      const modalContent = `
+        <div class="space-y-4">
+          <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+            <input type="text" value="${shareUrl.value}" 
+                   class="flex-1 p-2 border rounded" readonly>
+            <button onclick="navigator.clipboard.writeText('${shareUrl.value}')
+                           .then(() => Swal.showValidationMessage('¡Enlace copiado!'))"
+                    class="p-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200">
+              <i class="fas fa-copy"></i>
+            </button>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <a href="https://wa.me/?text=${encodeURIComponent(`${shareData.text} ${shareData.url}`)}" 
+               target="_blank" 
+               class="flex items-center justify-center gap-2 p-3 bg-green-500 text-white rounded-lg hover:bg-green-600">
+              <i class="fab fa-whatsapp"></i>
+              WhatsApp
+            </a>
+            <a href="https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareData.url)}" 
+               target="_blank"
+               class="flex items-center justify-center gap-2 p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+              <i class="fab fa-facebook-f"></i>
+              Facebook
+            </a>
+          </div>
+        </div>
+      `
+
+      await Swal.fire({
+        title: 'Compartir producto',
+        html: modalContent,
+        showConfirmButton: false,
+        showCloseButton: true,
+        customClass: {
+          container: 'share-modal'
+        }
+      })
+    }
+
+    // Registrar interés si el producto está inactivo
+    if (props.producto.estado === 'inactivo') {
+      try {
+        await productoStore.registrarInteresProducto(props.producto.id)
+      } catch (error) {
+        if (!error.response?.status === 429) {
+          console.error('Error al registrar interés:', error)
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error al compartir:', error)
+  }
+}
 </script>
 
 <template>
   <div class="bg-white rounded-lg shadow-md overflow-hidden h-full flex flex-col transform transition-all duration-300 hover:shadow-xl hover:scale-[1.02]">
-    <!-- Imagen del producto -->
+    <!-- Contenedor de imagen con overlay cuando está agotado -->
     <div class="relative aspect-square overflow-hidden">
       <img 
         :src="producto.imagen_url" 
         :alt="producto.nombre"
-        class="w-full h-full object-cover object-center transform transition-transform duration-300 group-hover:scale-110"
+        :class="[
+          'w-full h-full object-cover object-center transition-all duration-300',
+          { 'opacity-50 filter blur-[1px]': producto.estado === 'inactivo' }
+        ]"
       />
-      <!-- Badge de stock -->
+      
+      <!-- Overlay de producto agotado -->
       <div 
-        v-if="producto.stock > 0" 
-        class="absolute top-2 left-2 bg-[#33c7d1] text-white text-xs font-medium px-2 py-1 rounded-full"
+        v-if="producto.estado === 'inactivo'"
+        class="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-20"
       >
-        Stock disponible
-      </div>
-      <!-- Nuevo: Badge de precios mayoristas para usuarios autenticados -->
-      <div 
-        v-if="authStore.isAuthenticated" 
-        class="absolute top-2 right-2 bg-[#FF1F6D] text-white text-xs font-medium px-2 py-1 rounded-full flex items-center gap-1"
-      >
-        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-        </svg>
-        Precios mayoristas
+        <span class="bg-red-100 text-red-800 px-4 py-2 rounded-full text-lg font-semibold mb-3">
+          Agotado
+        </span>
+        <button
+          @click="registrarInteres"
+          class="bg-blue-100 text-blue-800 px-4 py-2 rounded-full text-sm font-medium 
+                 hover:bg-blue-200 transition-colors flex items-center gap-2"
+        >
+          <i class="fas fa-bell"></i>
+          Notificarme cuando haya stock
+        </button>
+        <div v-if="producto.interes_count > 0" class="mt-2 text-white text-sm">
+          {{ producto.interes_count }} personas interesadas
+        </div>
       </div>
     </div>
 
@@ -225,10 +361,10 @@ const selectRecomendado = () => {
       </div>
 
       <!-- Botones -->
-      <div class="grid grid-cols-5 gap-2 mt-4">
+      <div class="flex gap-2 mt-4">
         <button 
           @click="openModal"
-          class="col-span-4 bg-[#FF1F6D] text-white py-2 px-3 rounded-md text-sm font-medium 
+          class="flex-1 bg-[#FF1F6D] text-white py-2 px-3 rounded-md text-sm font-medium 
                  hover:bg-[#e01a61] transition-all duration-300 transform hover:scale-105 
                  flex items-center justify-center gap-1 group"
         >
@@ -243,16 +379,25 @@ const selectRecomendado = () => {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
           </svg>
         </button>
-        <button 
-          @click="showQuantityModal = true"
-          class="bg-[#33c7d1] text-white p-2 rounded-md hover:bg-[#2ba3ac] transition-all duration-300 
-                 transform hover:scale-110 flex items-center justify-center"
-          v-if="producto.stock > 0"
-        >
-          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-          </svg>
-        </button>
+        
+        <div class="flex gap-2">
+          <!-- Botón de compartir -->
+          <button 
+            @click="abrirCompartir"
+            class="bg-gray-100 text-gray-700 p-2 rounded-md hover:bg-gray-200 transition-all duration-300"
+          >
+            <i class="fas fa-share-alt"></i>
+          </button>
+          
+          <!-- Botón de carrito solo si hay stock -->
+          <button 
+            v-if="producto.estado === 'activo'"
+            @click="showQuantityModal = true"
+            class="bg-[#33c7d1] text-white p-2 rounded-md hover:bg-[#2ba3ac] transition-all duration-300"
+          >
+            <i class="fas fa-shopping-cart"></i>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -322,6 +467,40 @@ const selectRecomendado = () => {
                     <p class="text-gray-700">{{ producto.descripcion || 'Sin descripción disponible' }}</p>
                   </div>
 
+                  <!-- Estado del producto -->
+                  <div class="space-y-4">
+                    <div class="flex items-center space-x-2">
+                      <span 
+                        v-if="producto.estado === 'inactivo'"
+                        class="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-semibold"
+                      >
+                        Sin Stock
+                      </span>
+                      <span 
+                        v-else
+                        class="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold"
+                      >
+                        En Stock
+                      </span>
+                    </div>
+                    
+                    <div v-if="producto.estado === 'inactivo'">
+                      <button
+                        @click="registrarInteres"
+                        class="w-full bg-blue-100 text-blue-800 px-4 py-2 rounded-lg text-sm font-medium 
+                               hover:bg-blue-200 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <i class="fas fa-bell"></i>
+                        Notificarme cuando haya stock
+                      </button>
+                      
+                      <div v-if="producto.interes_count > 0" 
+                           class="mt-2 text-sm text-gray-600 text-center">
+                        {{ producto.interes_count }} personas interesadas
+                      </div>
+                    </div>
+                  </div>
+
                   <!-- Precios -->
                   <div class="space-y-2 pt-4">
                     <div class="flex justify-between items-center">
@@ -359,13 +538,13 @@ const selectRecomendado = () => {
                   </div>
 
                   <!-- Stock -->
-                  <div class="pt-4">
+                  <!-- <div class="pt-4">
                     <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium"
                           :class="producto.stock > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
                     >
                       {{ producto.stock > 0 ? 'En stock' : 'Sin stock' }}
                     </span>
-                  </div>
+                  </div> -->
                 </div>
               </div>
 
@@ -375,25 +554,70 @@ const selectRecomendado = () => {
                 :producto-actual-id="producto.id"
                 @select-producto="selectRecomendado"
               />
+
+              <div class="flex justify-center gap-3 mt-4">
+                <SocialSharing
+                  :sharing-data="{
+                    url: shareUrl,
+                    title: producto.nombre,
+                    description: producto.descripcion,
+                    quote: `¡Mira este producto en nuestra tienda! ${producto.nombre}`,
+                    hashtags: 'tienda,productos'
+                  }"
+                  :networks="['facebook', 'whatsapp', 'telegram', 'email']"
+                  class="flex gap-2"
+                  network-tag="button"
+                >
+                  <template #facebook>
+                    <button class="p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700">
+                      <i class="fab fa-facebook-f"></i>
+                    </button>
+                  </template>
+                  <template #whatsapp>
+                    <button class="p-2 bg-green-500 text-white rounded-full hover:bg-green-600">
+                      <i class="fab fa-whatsapp"></i>
+                    </button>
+                  </template>
+                  <template #telegram>
+                    <button class="p-2 bg-blue-400 text-white rounded-full hover:bg-blue-500">
+                      <i class="fab fa-telegram-plane"></i>
+                    </button>
+                  </template>
+                  <template #email>
+                    <button class="p-2 bg-gray-600 text-white rounded-full hover:bg-gray-700">
+                      <i class="fas fa-envelope"></i>
+                    </button>
+                  </template>
+                </SocialSharing>
+              </div>
             </div>
 
             <!-- Modal footer - Fijo -->
             <div class="border-t bg-white p-4 sticky bottom-0 left-0 right-0 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
-              <div class="flex items-center justify-end gap-3">
-                <button 
-                  @click="closeAndNavigate"
-                  class="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md transition-colors duration-200"
-                >
-                  Cerrar
-                </button>
-                <button 
-                  v-if="producto.stock > 0"
+              <div class="flex items-center justify-between gap-3">
+                <div class="flex gap-2">
+                  <button 
+                    @click="closeAndNavigate"
+                    class="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md transition-colors duration-200"
+                  >
+                    Cerrar
+                  </button>
+                  <button 
+                    @click="abrirCompartir"
+                    class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors duration-200 flex items-center gap-2"
+                  >
+                    <i class="fas fa-share-alt"></i>
+                    Compartir
+                  </button>
+                </div>
+                
+                <button
+                  v-if="producto.estado === 'activo'"
                   @click="showQuantityModal = true"
-                  class="px-6 py-2 text-sm font-medium text-white bg-[#33c7d1] hover:bg-[#2ba3ac] rounded-md transition-colors duration-200 flex items-center gap-2"
+                  class="bg-[#33c7d1] text-white py-2 px-4 rounded-lg text-sm font-medium 
+                         hover:bg-[#2ba3ac] transition-colors flex items-center gap-2"
                 >
-                  <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                  </svg>
+                  <i class="fas fa-shopping-cart"></i>
                   Agregar al carrito
                 </button>
               </div>
@@ -519,5 +743,9 @@ const selectRecomendado = () => {
 .fade-leave-from {
   opacity: 1;
   transform: scale(1);
+}
+
+.share-modal .swal2-html-container {
+  margin: 1em;
 }
 </style> 
