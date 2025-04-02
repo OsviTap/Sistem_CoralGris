@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useProductoStore } from '@/stores/producto'
 import { useCategoriaStore } from '@/stores/categoria'
 import { useMarcaStore } from '@/stores/marca'
@@ -9,20 +9,30 @@ import Filtros from '@/components/productos/Filtros.vue'
 import Paginacion from '@/components/common/Paginacion.vue'
 import Navbar from '@/components/landing/Navbar.vue'
 import Footer from '@/components/landing/Footer.vue'
+import { useCartStore } from '@/stores/cart'
 
 const productoStore = useProductoStore()
 const categoriaStore = useCategoriaStore()
 const marcaStore = useMarcaStore()
 const authStore = useAuthStore()
+const cartStore = useCartStore()
 
 const showFilters = ref(false)
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 const userLevel = computed(() => authStore.user?.nivel_precio || 'L1')
 
+const cargarProductos = async () => {
+  try {
+    await productoStore.fetchProductos()
+  } catch (error) {
+    console.error('Error al cargar productos:', error)
+  }
+}
+
 onMounted(async () => {
   await Promise.all([
-    productoStore.fetchProductos(),
+    cargarProductos(),
     categoriaStore.fetchCategorias(),
     marcaStore.fetchMarcas()
   ])
@@ -38,8 +48,30 @@ const toggleFilters = () => {
 }
 
 const applyFiltersAndClose = (filters) => {
-  productoStore.setFiltros(filters)
+  productoStore.filtros = { ...productoStore.filtros, ...filters }
+  productoStore.paginacion.paginaActual = 1
+  cargarProductos()
   toggleFilters()
+}
+
+// Observar cambios en los filtros
+watch(
+  () => productoStore.filtros,
+  () => {
+    productoStore.paginacion.paginaActual = 1
+    cargarProductos()
+  },
+  { deep: true }
+)
+
+// Observar cambios en la página
+watch(
+  () => productoStore.paginacion.paginaActual,
+  cargarProductos
+)
+
+const agregarAlCarrito = (producto) => {
+  cartStore.addItem(producto)
 }
 </script>
 
@@ -102,7 +134,7 @@ const applyFiltersAndClose = (filters) => {
               <div v-else-if="productoStore.error" class="text-center py-12">
                 <div class="text-red-500 font-medium">{{ productoStore.error }}</div>
                 <button 
-                  @click="productoStore.fetchProductos()"
+                  @click="cargarProductos"
                   class="mt-4 text-[#33c7d1] hover:text-[#2ba3ac]"
                 >
                   Intentar nuevamente
@@ -124,14 +156,15 @@ const applyFiltersAndClose = (filters) => {
                   :producto="producto"
                   :show-precios-mayoristas="isAuthenticated"
                   :nivel-precio="userLevel"
+                  @agregar-al-carrito="agregarAlCarrito"
                 />
               </transition-group>
 
               <!-- Paginación -->
               <div class="mt-6">
                 <Paginacion
-                  :pagina-actual="productoStore.paginaActual"
-                  :total-paginas="productoStore.totalPaginas"
+                  :pagina-actual="productoStore.paginacion.paginaActual"
+                  :total-paginas="productoStore.paginacion.totalPaginas"
                   @cambiar-pagina="productoStore.setPagina"
                 />
               </div>

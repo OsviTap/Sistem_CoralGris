@@ -5,6 +5,44 @@ const recommendationService = require('../services/recommendationService');
 const fpGrowth = require('node-fpgrowth');
 const sequelize = require('../config/database');
 const ProductoInteres = require('../models/ProductoInteres');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs').promises;
+
+// Configuración de multer para subida de imágenes
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/productos');
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Tipo de archivo no permitido'));
+    }
+  }
+});
+
+// Clase de error personalizada
+class ProductoError extends Error {
+  constructor(message, code, details) {
+    super(message);
+    this.code = code;
+    this.details = details;
+  }
+}
 
 const productoController = {
   // Obtener productos con filtros y paginación
@@ -52,29 +90,29 @@ const productoController = {
             model: Marca,
             as: 'marca',
             required: false
-          },
-          { 
-            model: ColorProducto,
-            as: 'colores',
-            required: false
           }
         ],
         order,
         limit: parseInt(limit),
-        offset: parseInt(offset),
-        distinct: true // Para evitar duplicados por los joins
+        offset: parseInt(offset)
       });
 
-      console.log(`Productos encontrados: ${count}`); // Debug log
-      if (rows.length > 0) {
-        console.log('Primer producto:', rows[0].toJSON()); // Debug log del primer producto
-      }
+      // Transformar los datos para incluir todos los precios
+      const productos = rows.map(producto => ({
+        ...producto.toJSON(),
+        precios: {
+          l1: producto.precio_l1,
+          l2: producto.precio_l2,
+          l3: producto.precio_l3,
+          l4: producto.precio_l4
+        }
+      }));
 
       res.json({
-        productos: rows,
+        productos,
         total: count,
-        paginas: Math.ceil(count / limit),
-        pagina_actual: parseInt(page)
+        totalPages: Math.ceil(count / limit),
+        currentPage: parseInt(page)
       });
     } catch (error) {
       console.error('Error detallado en getProductos:', error);
@@ -487,6 +525,279 @@ const productoController = {
         message: 'Error al obtener productos con interés',
         error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
+    }
+  },
+
+  // Obtener todos los productos con filtros
+  obtenerProductos: async (req, res) => {
+    try {
+      const {
+        page = 1,
+        limit = 10,
+        categoria,
+        marca,
+        precioMin,
+        precioMax,
+        stock,
+        rating,
+        busqueda,
+        ordenarPor = 'created_at',
+        orden = 'DESC'
+      } = req.query
+
+      const offset = (page - 1) * limit
+      const where = {}
+
+      // Aplicar filtros
+      if (categoria) where.categoria_id = categoria
+      if (marca) where.marca_id = marca
+      if (precioMin || precioMax) {
+        where.precio_l1 = {}
+        if (precioMin) where.precio_l1[Op.gte] = precioMin
+        if (precioMax) where.precio_l1[Op.lte] = precioMax
+      }
+      if (stock === 'true') where.stock = { [Op.gt]: 0 }
+      if (rating) where.rating = { [Op.gte]: rating }
+      if (busqueda) {
+        where[Op.or] = [
+          { nombre: { [Op.iLike]: `%${busqueda}%` } },
+          { descripcion: { [Op.iLike]: `%${busqueda}%` } },
+          { codigo_sku: { [Op.iLike]: `%${busqueda}%` } }
+        ]
+      }
+
+      const { count, rows } = await Producto.findAndCountAll({
+        where,
+        include: [
+          { model: Categoria, attributes: ['nombre'] },
+          { model: Marca, attributes: ['nombre'] }
+        ],
+        order: [[ordenarPor, orden]],
+        limit: parseInt(limit),
+        offset: parseInt(offset)
+      })
+
+      // Transformar los datos para incluir todos los precios
+      const productos = rows.map(producto => ({
+        ...producto.toJSON(),
+        precios: {
+          l1: producto.precio_l1,
+          l2: producto.precio_l2,
+          l3: producto.precio_l3,
+          l4: producto.precio_l4
+        }
+      }))
+
+      res.json({
+        total: count,
+        totalPaginas: Math.ceil(count / limit),
+        paginaActual: parseInt(page),
+        productos
+      })
+    } catch (error) {
+      console.error('Error al obtener productos:', error)
+      res.status(500).json({
+        error: 'Error al obtener productos',
+        details: error.message
+      })
+    }
+  },
+
+  // Obtener un producto por ID
+  obtenerProducto: async (req, res) => {
+    try {
+      const producto = await Producto.findByPk(req.params.id, {
+        include: [
+          { model: Categoria, attributes: ['nombre'] },
+          { model: Marca, attributes: ['nombre'] }
+        ]
+      })
+
+      if (!producto) {
+        throw new ProductoError('Producto no encontrado', 404)
+      }
+
+      res.json(producto)
+    } catch (error) {
+      if (error instanceof ProductoError) {
+        res.status(error.code).json({
+          error: error.message,
+          details: error.details
+        })
+      } else {
+        console.error('Error al obtener producto:', error)
+        res.status(500).json({
+          error: 'Error al obtener producto',
+          details: error.message
+        })
+      }
+    }
+  },
+
+  // Crear nuevo producto
+  crearProducto: async (req, res) => {
+    try {
+      const producto = await Producto.create(req.body)
+      res.status(201).json(producto)
+    } catch (error) {
+      console.error('Error al crear producto:', error)
+      res.status(500).json({
+        error: 'Error al crear producto',
+        details: error.message
+      })
+    }
+  },
+
+  // Actualizar producto
+  actualizarProducto: async (req, res) => {
+    try {
+      const producto = await Producto.findByPk(req.params.id)
+      if (!producto) {
+        throw new ProductoError('Producto no encontrado', 404)
+      }
+
+      await producto.update(req.body)
+      res.json(producto)
+    } catch (error) {
+      if (error instanceof ProductoError) {
+        res.status(error.code).json({
+          error: error.message,
+          details: error.details
+        })
+      } else {
+        console.error('Error al actualizar producto:', error)
+        res.status(500).json({
+          error: 'Error al actualizar producto',
+          details: error.message
+        })
+      }
+    }
+  },
+
+  // Eliminar producto
+  eliminarProducto: async (req, res) => {
+    try {
+      const producto = await Producto.findByPk(req.params.id)
+      if (!producto) {
+        throw new ProductoError('Producto no encontrado', 404)
+      }
+
+      // Eliminar imágenes
+      if (producto.imagen) {
+        await fs.unlink(path.join('uploads/productos', producto.imagen))
+      }
+      if (producto.imagenes && producto.imagenes.length > 0) {
+        for (const imagen of producto.imagenes) {
+          await fs.unlink(path.join('uploads/productos', imagen))
+        }
+      }
+
+      await producto.destroy()
+      res.json({ message: 'Producto eliminado correctamente' })
+    } catch (error) {
+      if (error instanceof ProductoError) {
+        res.status(error.code).json({
+          error: error.message,
+          details: error.details
+        })
+      } else {
+        console.error('Error al eliminar producto:', error)
+        res.status(500).json({
+          error: 'Error al eliminar producto',
+          details: error.message
+        })
+      }
+    }
+  },
+
+  // Subir imágenes de producto
+  subirImagenes: async (req, res) => {
+    try {
+      const uploadPromises = req.files.map(file => {
+        return new Promise((resolve, reject) => {
+          upload.single('imagen')(req, res, (err) => {
+            if (err) reject(err)
+            resolve(file.filename)
+          })
+        })
+      })
+
+      const imagenes = await Promise.all(uploadPromises)
+      res.json({ imagenes })
+    } catch (error) {
+      console.error('Error al subir imágenes:', error)
+      res.status(500).json({
+        error: 'Error al subir imágenes',
+        details: error.message
+      })
+    }
+  },
+
+  // Obtener productos relacionados
+  obtenerProductosRelacionados: async (req, res) => {
+    try {
+      const producto = await Producto.findByPk(req.params.id)
+      if (!producto) {
+        throw new ProductoError('Producto no encontrado', 404)
+      }
+
+      const productosRelacionados = await Producto.findAll({
+        where: {
+          id: { [Op.ne]: producto.id },
+          categoria_id: producto.categoria_id,
+          activo: true,
+          stock: { [Op.gt]: 0 }
+        },
+        include: [
+          { model: Categoria, attributes: ['nombre'] },
+          { model: Marca, attributes: ['nombre'] }
+        ],
+        limit: 4
+      })
+
+      res.json(productosRelacionados)
+    } catch (error) {
+      if (error instanceof ProductoError) {
+        res.status(error.code).json({
+          error: error.message,
+          details: error.details
+        })
+      } else {
+        console.error('Error al obtener productos relacionados:', error)
+        res.status(500).json({
+          error: 'Error al obtener productos relacionados',
+          details: error.message
+        })
+      }
+    }
+  },
+
+  // Obtener tendencias
+  obtenerTendencias: async (req, res) => {
+    try {
+      const tendencias = await Producto.findAll({
+        where: {
+          activo: true,
+          stock: { [Op.gt]: 0 }
+        },
+        include: [
+          { model: Categoria, attributes: ['nombre'] },
+          { model: Marca, attributes: ['nombre'] }
+        ],
+        order: [
+          ['rating', 'DESC'],
+          ['created_at', 'DESC']
+        ],
+        limit: 10
+      })
+
+      res.json(tendencias)
+    } catch (error) {
+      console.error('Error al obtener tendencias:', error)
+      res.status(500).json({
+        error: 'Error al obtener tendencias',
+        details: error.message
+      })
     }
   }
 };

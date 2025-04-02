@@ -10,6 +10,9 @@ const Marca = require('./Marca.js');
 const Sucursal = require('./Sucursal');
 const DetallePedido = require('./DetallePedido');
 const Consulta = require('./consulta');
+const InteraccionUsuario = require('./InteraccionUsuario');
+const CategoriaEmergente = require('./CategoriaEmergente');
+const PatronInteraccion = require('./PatronInteraccion');
 
 // Asociaciones de Producto
 Producto.belongsTo(Categoria, { 
@@ -65,5 +68,8 @@ module.exports = {
   Subcategoria,
   Marca,
   Sucursal,
-  DetallePedido
+  DetallePedido,
+  InteraccionUsuario,
+  CategoriaEmergente,
+  PatronInteraccion
 };

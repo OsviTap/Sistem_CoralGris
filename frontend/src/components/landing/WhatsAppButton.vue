@@ -2,7 +2,7 @@
   <a :href="whatsappLink" 
      target="_blank" 
      rel="noopener noreferrer" 
-     class="fixed bottom-8 right-8 bg-[#25D366] hover:bg-[#128C7E] text-white rounded-full p-4 shadow-lg transition-all duration-300 hover:scale-110 z-[9999] group">
+     class="fixed bottom-8 left-8 bg-[#25D366] hover:bg-[#128C7E] text-white rounded-full p-4 shadow-lg transition-all duration-300 hover:scale-110 z-[9998] group">
     <!-- WhatsApp Icon -->
     <svg 
       class="w-8 h-8" 
@@ -14,9 +14,9 @@
     </svg>
     
     <!-- Tooltip -->
-    <span class="absolute right-[120%] top-1/2 -translate-y-1/2 hidden group-hover:block bg-gray-800 text-white text-sm py-2 px-4 rounded-lg whitespace-nowrap">
+    <span class="absolute left-[120%] top-1/2 -translate-y-1/2 hidden group-hover:block bg-gray-800 text-white text-sm py-2 px-4 rounded-lg whitespace-nowrap">
       Contáctanos por WhatsApp
-      <span class="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 rotate-45 w-2 h-2 bg-gray-800"></span>
+      <span class="absolute top-1/2 left-0 -translate-y-1/2 -translate-x-1/2 rotate-45 w-2 h-2 bg-gray-800"></span>
     </span>
   </a>
 </template>
@@ -38,5 +38,12 @@ const whatsappLink = computed(() => {
 a {
   position: fixed !important;
   z-index: 9999 !important;
+}
+
+@media (max-width: 768px) {
+  a {
+    bottom: 1rem !important;
+    left: 1rem !important;
+  }
 }
 </style> 

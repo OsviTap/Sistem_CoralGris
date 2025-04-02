@@ -29,6 +29,7 @@
     </main>
 
     <Footer />
+    <AsistenteRecomendaciones />
   </div>
 </template>
 
@@ -38,4 +39,5 @@ import Footer from '@/components/landing/Footer.vue'
 import MainCarousel from '@/components/landing/MainCarousel.vue'
 import CategoryCards from '@/components/landing/CategoryCards.vue'
 import SubcategoryCards from '@/components/landing/SubcategoryCards.vue'
+import AsistenteRecomendaciones from '@/components/landing/AsistenteRecomendaciones.vue'
 </script>

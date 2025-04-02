@@ -9,6 +9,10 @@ import 'swiper/css/navigation'
 
 const contenidoStore = useContenidoLandingStore()
 
+const handleImageError = (e) => {
+  e.target.src = '/images/placeholder.jpg' // Asegúrate de tener una imagen de respaldo
+}
+
 onMounted(async () => {
   await contenidoStore.fetchCarruselContent()
 })
@@ -26,6 +30,12 @@ onMounted(async () => {
     <div v-else-if="contenidoStore.error" 
          class="w-full h-[350px] bg-red-100 flex items-center justify-center rounded-lg">
       <span class="text-red-500">{{ contenidoStore.error }}</span>
+    </div>
+
+    <!-- No Content State -->
+    <div v-else-if="!contenidoStore.carruselItems.length" 
+         class="w-full h-[350px] bg-gray-100 flex items-center justify-center rounded-lg">
+      <span class="text-gray-500">No hay contenido para mostrar</span>
     </div>
 
     <!-- Carrusel -->
@@ -47,7 +57,8 @@ onMounted(async () => {
                     class="relative">
         <img :src="item.imagen_url" 
              :alt="item.titulo"
-             class="w-full h-full object-cover rounded-lg" />
+             class="w-full h-full object-cover rounded-lg"
+             @error="handleImageError" />
         
         <!-- Solo mostrar el div si hay título o contenido -->
         <div v-if="item.titulo || item.contenido" 
@@ -81,6 +92,7 @@ onMounted(async () => {
   width: 40px;
   height: 40px;
   border-radius: 50%;
+  transition: all 0.3s ease;
 }
 
 :deep(.swiper-button-next::after),
@@ -91,10 +103,12 @@ onMounted(async () => {
 :deep(.swiper-pagination-bullet) {
   background: white;
   opacity: 0.7;
+  transition: all 0.3s ease;
 }
 
 :deep(.swiper-pagination-bullet-active) {
   opacity: 1;
+  transform: scale(1.2);
 }
 
 /* Añadir efecto de hover a los botones de navegación */
@@ -102,7 +116,6 @@ onMounted(async () => {
 :deep(.swiper-button-prev:hover) {
   background: rgba(0, 0, 0, 0.7);
   transform: scale(1.1);
-  transition: all 0.3s ease;
 }
 
 /* Ajustar la altura del gradiente */
@@ -112,6 +125,6 @@ onMounted(async () => {
     rgba(0, 0, 0, 0.6) 50%,
     rgba(0, 0, 0, 0) 100%
   );
-  padding-top: 4rem; /* Aumentar el área del gradiente */
+  padding-top: 4rem;
 }
 </style> 
