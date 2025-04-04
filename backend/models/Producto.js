@@ -61,6 +61,11 @@ const Producto = sequelize.define('Producto', {
     type: DataTypes.TEXT,
     allowNull: true
   },
+  imagenes_adicionales: {
+    type: DataTypes.ARRAY(DataTypes.TEXT),
+    allowNull: true,
+    defaultValue: []
+  },
   codigo_sku: {
     type: DataTypes.TEXT,
     allowNull: true

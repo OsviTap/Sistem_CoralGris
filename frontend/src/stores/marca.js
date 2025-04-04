@@ -43,14 +43,14 @@ export const useMarcaStore = defineStore('marca', {
   actions: {
     async fetchMarcas() {
       this.loading = true;
+      this.error = null;
       try {
         const response = await axios.get('/marcas');
         this.marcas = response.data;
-        this.error = null;
         return this.marcas;
       } catch (error) {
-        this.error = error.message || 'Error al cargar marcas';
-        console.error('Error:', error);
+        this.error = error.response?.data?.message || 'Error al cargar las marcas';
+        console.error('Error al cargar marcas:', error);
         throw error;
       } finally {
         this.loading = false;

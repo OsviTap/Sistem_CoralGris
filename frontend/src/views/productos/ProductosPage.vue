@@ -24,7 +24,9 @@ const userLevel = computed(() => authStore.user?.nivel_precio || 'L1')
 
 const cargarProductos = async () => {
   try {
+    console.log('Cargando productos...')
     await productoStore.fetchProductos()
+    console.log('Productos cargados:', productoStore.productos)
   } catch (error) {
     console.error('Error al cargar productos:', error)
   }
@@ -141,11 +143,18 @@ const agregarAlCarrito = (producto) => {
                 </button>
               </div>
 
-              <div v-else-if="productoStore.productos.length === 0" class="text-center py-12">
+              <div v-else-if="!productoStore.productos || productoStore.productos.length === 0" class="text-center py-12">
                 <p class="text-gray-500">No se encontraron productos</p>
+                <button 
+                  @click="cargarProductos"
+                  class="mt-4 text-[#33c7d1] hover:text-[#2ba3ac]"
+                >
+                  Recargar productos
+                </button>
               </div>
 
               <transition-group 
+                v-else
                 name="fade" 
                 tag="div" 
                 class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"

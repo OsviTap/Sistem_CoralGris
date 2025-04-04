@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import axios from '@/utils/axios'
 import { ref, computed } from 'vue'
+import { useCartStore } from '@/stores/cart'
+import { useProductoStore } from '@/stores/producto'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
@@ -19,15 +21,33 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null
 
     try {
+      console.log('Intentando iniciar sesión con:', credentials)
       const response = await axios.post('/auth/login', credentials)
-      user.value = response.data.usuario
-      token.value = response.data.token
+      console.log('Respuesta del servidor:', response.data)
       
-      localStorage.setItem('token', token.value)
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
+      if (response.data.token) {
+        user.value = response.data.usuario
+        token.value = response.data.token
+        
+        localStorage.setItem('token', token.value)
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
 
-      return { success: true, user: response.data.usuario }
+        // Actualizar precios de productos
+        const productoStore = useProductoStore()
+        // Recargar productos después del login
+        await productoStore.fetchProductos()
+        productoStore.actualizarPrecios()
+
+        // Actualizar precios del carrito
+        const cartStore = useCartStore()
+        cartStore.updatePrices(user.value.nivel_precio)
+
+        return { success: true, user: response.data.usuario }
+      } else {
+        throw new Error('No se recibió el token de autenticación')
+      }
     } catch (err) {
+      console.error('Error en login:', err)
       error.value = err.response?.data?.message || 'Error en la autenticación'
       return { success: false, error: error.value }
     } finally {
@@ -35,11 +55,30 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  const logout = () => {
-    user.value = null
-    token.value = null
-    localStorage.removeItem('token')
-    delete axios.defaults.headers.common['Authorization']
+  const logout = async () => {
+    try {
+      // Limpiar datos del usuario
+      user.value = null
+      token.value = null
+      
+      // Limpiar localStorage
+      localStorage.removeItem('token')
+      
+      // Limpiar headers de axios
+      delete axios.defaults.headers.common['Authorization']
+      
+      // Limpiar carrito
+      const cartStore = useCartStore()
+      cartStore.clearCart()
+      
+      // Redirigir al login
+      window.location.href = '/login'
+      
+      return true
+    } catch (error) {
+      console.error('Error al cerrar sesión:', error)
+      throw error
+    }
   }
 
   const register = async (userData) => {
@@ -90,10 +129,17 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  const init = () => {
+  const init = async () => {
     if (token.value) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
-      fetchUser()
+      try {
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
+        await fetchUser()
+      } catch (error) {
+        console.error('Error al inicializar auth:', error)
+        if (error.response?.status === 401) {
+          await logout()
+        }
+      }
     }
   }
 

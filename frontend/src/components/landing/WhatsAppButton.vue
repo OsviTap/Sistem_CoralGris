@@ -1,5 +1,6 @@
 <template>
-  <a :href="whatsappLink" 
+  <a v-if="!isDashboardOrLogin" 
+     :href="whatsappLink" 
      target="_blank" 
      rel="noopener noreferrer" 
      class="fixed bottom-8 left-8 bg-[#25D366] hover:bg-[#128C7E] text-white rounded-full p-4 shadow-lg transition-all duration-300 hover:scale-110 z-[9998] group">
@@ -23,9 +24,16 @@
 
 <script setup>
 import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 
+const route = useRoute()
 const phoneNumber = '51999999999' // Reemplaza con el número real
 const message = 'Hola CoralGris, me gustaría obtener más información sobre sus productos.' // Mensaje predeterminado
+
+// Verificar si estamos en una ruta del dashboard o login
+const isDashboardOrLogin = computed(() => {
+  return route.path.includes('/dashboard') || route.path.includes('/login')
+})
 
 const whatsappLink = computed(() => {
   const encodedMessage = encodeURIComponent(message)

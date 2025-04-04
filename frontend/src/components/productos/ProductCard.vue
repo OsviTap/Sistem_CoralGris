@@ -61,30 +61,84 @@ const shareUrl = computed(() => {
 
 // Computed properties para precios
 const precioNormal = computed(() => {
-  if (authStore.isAuthenticated && authStore.user?.nivel_precio) {
-    return props.producto[`precio_${authStore.user.nivel_precio.toLowerCase()}`]
+  if (!authStore.isAuthenticated) {
+    return props.producto.precio_l1
   }
-  return props.producto.precio_l1
+
+  const tieneRol = authStore.user?.tipo_usuario && authStore.user.tipo_usuario !== 'cliente'
+  let precioNivel = props.producto.precio_l1
+
+  // Determinar el precio según si tiene rol o no
+  if (tieneRol) {
+    // Usuarios con rol ven precios L3 por defecto
+    precioNivel = props.producto.precio_l3 || props.producto.precio_l2 || props.producto.precio_l1
+  } else {
+    // Usuarios sin rol ven precios L1 y L2
+    precioNivel = props.producto.precio_l2 || props.producto.precio_l1
+  }
+  
+  return precioNivel
 })
 
 const precioMayoreo = computed(() => {
-  if (authStore.isAuthenticated && authStore.user?.nivel_precio) {
-    const nivelActual = authStore.user.nivel_precio
-    const nivelSiguiente = {
-      'L1': 'L2',
-      'L2': 'L3',
-      'L3': 'L4',
-      'L4': 'L4'
-    }[nivelActual]
-    return props.producto[`precio_${nivelSiguiente.toLowerCase()}`]
+  if (!authStore.isAuthenticated) {
+    return props.producto.precio_l2
   }
-  // Para usuarios no autenticados o sin nivel, mostrar precio L2
-  return props.producto.precio_l2
+
+  const tieneRol = authStore.user?.tipo_usuario && authStore.user.tipo_usuario !== 'cliente'
+  let precioMayoreo = props.producto.precio_l2
+
+  // Determinar el precio de mayoreo según si tiene rol o no
+  if (tieneRol) {
+    // Usuarios con rol ven precios L4 para mayoreo
+    precioMayoreo = props.producto.precio_l4 || props.producto.precio_l3
+  } else {
+    // Usuarios sin rol ven precios L2 para mayoreo
+    precioMayoreo = props.producto.precio_l2
+  }
+  
+  return precioMayoreo
 })
 
 const precioFinal = computed(() => {
   const cantidadMayoreo = props.producto.cantidad_mayoreo || 12
   return cantidad.value >= cantidadMayoreo ? precioMayoreo.value : precioNormal.value
+})
+
+const mostrarPrecioTachado = computed(() => {
+  if (!authStore.isAuthenticated) return false
+  
+  const tieneRol = authStore.user?.tipo_usuario && authStore.user.tipo_usuario !== 'cliente'
+  if (!tieneRol) return false
+  
+  const precioL1 = props.producto.precio_l1
+  const precioActual = precioNormal.value
+  
+  return precioL1 && precioActual && precioL1 !== precioActual
+})
+
+const calcularDescuento = computed(() => {
+  if (!mostrarPrecioTachado.value) return 0
+  
+  const precioL1 = props.producto.precio_l1
+  const precioActual = precioNormal.value
+  
+  return ((precioL1 - precioActual) / precioL1 * 100).toFixed(1)
+})
+
+const explicacionPrecioTachado = computed(() => {
+  if (!authStore.isAuthenticated) return ''
+  
+  const tieneRol = authStore.user?.tipo_usuario && authStore.user.tipo_usuario !== 'cliente'
+  if (!tieneRol) return ''
+  
+  const precioL1 = props.producto.precio_l1
+  const precioActual = precioNormal.value
+  
+  if (!precioL1 || !precioActual || precioL1 === precioActual) return ''
+  
+  const descuento = ((precioL1 - precioActual) / precioL1 * 100).toFixed(1)
+  return `Precio regular: $${formatPrice(precioL1)} (${descuento}% de descuento para tu nivel)`
 })
 
 const formatPrice = (price) => {
@@ -333,10 +387,19 @@ const openCantidadModal = () => {
           <button 
             class="add-to-cart-btn"
             @click.stop="openCantidadModal"
+            :class="{ 'out-of-stock': producto.agotado }"
             :disabled="producto.agotado"
           >
-            <i class="fas fa-shopping-cart"></i>
+            <i :class="producto.agotado ? 'fas fa-bell' : 'fas fa-shopping-cart'"></i>
           </button>
+        </div>
+        <div v-if="producto.agotado" class="out-of-stock-badge">
+          <i class="fas fa-exclamation-circle"></i>
+          Agotado
+        </div>
+        <div v-else class="stock-badge">
+          <i class="fas fa-check-circle"></i>
+          Disponible
         </div>
       </div>
       <div class="product-info">
@@ -347,16 +410,44 @@ const openCantidadModal = () => {
         <div class="product-brand" v-if="producto.marca?.nombre">
           {{ producto.marca.nombre }}
         </div>
-        <div class="product-price">
-          <span class="current-price">
-            ${{ formatPrice(producto.precios?.l1 || producto.precio_l1) }}
-          </span>
-          <span class="original-price" v-if="producto.precios?.l2 || producto.precio_l2">
-            ${{ formatPrice(producto.precios?.l2 || producto.precio_l2) }}
-          </span>
+        <div class="price-section">
+          <div class="current-price">
+            <span class="price-label">Precio:</span>
+            <span class="price" :class="{ 'has-discount': mostrarPrecioTachado }">
+              ${{ formatPrice(precioFinal) }}
+            </span>
+            <span v-if="mostrarPrecioTachado" class="original-price">
+              ${{ formatPrice(props.producto.precio_l1) }}
+            </span>
+          </div>
+          
+          <div v-if="mostrarPrecioTachado" class="discount-explanation">
+            <i class="fas fa-info-circle"></i>
+            <span>{{ explicacionPrecioTachado }}</span>
+          </div>
+          
+          <div v-if="tienePrecioMayoreo" class="mayoreo-info">
+            <div class="mayoreo-header">
+              <i class="fas fa-percentage"></i>
+              <span>Precio por mayoreo disponible</span>
+            </div>
+            <div class="mayoreo-details">
+              <div class="mayoreo-price">
+                <span class="price-label">Precio mayoreo:</span>
+                <span class="price">${{ formatPrice(precioMayoreo) }}</span>
+              </div>
+              <div class="mayoreo-savings" v-if="cantidad >= cantidadMayoreo">
+                <span class="savings-label">Ahorro por unidad:</span>
+                <span class="savings-amount">${{ formatPrice(ahorroPorUnidad) }}</span>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="product-stock" :class="{ 'out-of-stock': producto.agotado }">
-          {{ producto.agotado ? 'Agotado' : 'En stock' }}
+        <div v-if="producto.agotado" class="notify-interest">
+          <button @click="registrarInteres" class="notify-button">
+            <i class="fas fa-bell"></i>
+            Notificar cuando esté disponible
+          </button>
         </div>
       </div>
     </div>
@@ -483,23 +574,73 @@ const openCantidadModal = () => {
   margin-bottom: 0.5rem;
 }
 
-.product-price {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
+.price-section {
+  margin-top: 1rem;
 }
 
 .current-price {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.price {
   font-size: 1.25rem;
   font-weight: 600;
-  color: #2c3e50;
+  color: #33c7d1;
 }
 
 .original-price {
   font-size: 1rem;
-  color: #666;
   text-decoration: line-through;
+  color: #999;
+}
+
+.discount-explanation {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  color: #666;
+}
+
+.discount-explanation i {
+  color: #33c7d1;
+}
+
+.mayoreo-info {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background-color: #f8f9fa;
+  border-radius: 0.5rem;
+}
+
+.mayoreo-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #33c7d1;
+  font-weight: 500;
+}
+
+.mayoreo-details {
+  margin-top: 0.5rem;
+}
+
+.mayoreo-price {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.savings-label {
+  color: #666;
+}
+
+.savings-amount {
+  color: #28a745;
+  font-weight: 500;
 }
 
 .product-stock {
@@ -509,5 +650,51 @@ const openCantidadModal = () => {
 
 .product-stock.out-of-stock {
   color: #dc3545;
+}
+
+.out-of-stock-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background-color: rgba(220, 53, 69, 0.9);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 2;
+}
+
+.notify-interest {
+  margin-top: 1rem;
+}
+
+.notify-button {
+  width: 100%;
+  padding: 0.5rem;
+  background-color: #33c7d1;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.notify-button:hover {
+  background-color: #2ba3ac;
+}
+
+.add-to-cart-btn.out-of-stock {
+  background-color: #dc3545;
+}
+
+.add-to-cart-btn.out-of-stock:hover {
+  background-color: #c82333;
 }
 </style> 

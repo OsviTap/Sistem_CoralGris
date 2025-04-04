@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, watch, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProductoStore } from '@/stores/producto'
 import { useCategoriaStore } from '@/stores/categoria'
@@ -13,7 +13,7 @@ const productoStore = useProductoStore()
 const categoriaStore = useCategoriaStore()
 const marcaStore = useMarcaStore()
 
-const isEditing = !!route.params.id
+const isEditing = computed(() => !!route.params.id)
 const loading = ref(false)
 const saving = ref(false)
 const error = ref(null)
@@ -22,51 +22,156 @@ const formData = ref({
   nombre: '',
   descripcion: '',
   codigo: '',
+  tipo_codigo: 'NORMAL',
+  cantidad_mayoreo: '',
   precio_l1: '',
   precio_l2: '',
   precio_l3: '',
   precio_l4: '',
-  stock: '',
-  cantidad_mayoreo: '',
   categoria_id: '',
   marca_id: '',
   imagen_url: '',
-  activo: true
+  imagenes_adicionales: [],
+  agotado: false
 })
 
 const categorias = ref([])
 const marcas = ref([])
 
+const tiposCodigo = [
+  { value: 'NORMAL', label: 'Código Normal' },
+  { value: 'BARRA', label: 'Código de Barra' }
+]
+
+const imagenPrincipalPreview = ref('')
+const imagenesAdicionalesPreview = ref([])
+
+const handleImagenPrincipal = (event) => {
+  const file = event.target.files[0]
+  if (file) {
+    // Limpiar la URL anterior si existe
+    if (imagenPrincipalPreview.value && typeof imagenPrincipalPreview.value === 'string' && imagenPrincipalPreview.value.startsWith('blob:')) {
+      URL.revokeObjectURL(imagenPrincipalPreview.value)
+    }
+    formData.value.imagen_url = file
+    imagenPrincipalPreview.value = URL.createObjectURL(file)
+  }
+}
+
+const handleImagenesAdicionales = (event) => {
+  const files = Array.from(event.target.files)
+  files.forEach(file => {
+    formData.value.imagenes_adicionales.push(file)
+    imagenesAdicionalesPreview.value.push(URL.createObjectURL(file))
+  })
+}
+
+const removeImagenAdicional = (index) => {
+  // Limpiar la URL del objeto
+  if (imagenesAdicionalesPreview.value[index] && typeof imagenesAdicionalesPreview.value[index] === 'string' && imagenesAdicionalesPreview.value[index].startsWith('blob:')) {
+    URL.revokeObjectURL(imagenesAdicionalesPreview.value[index])
+  }
+  formData.value.imagenes_adicionales.splice(index, 1)
+  imagenesAdicionalesPreview.value.splice(index, 1)
+}
+
+// Limpiar URLs al desmontar el componente
+onUnmounted(() => {
+  if (imagenPrincipalPreview.value && typeof imagenPrincipalPreview.value === 'string' && imagenPrincipalPreview.value.startsWith('blob:')) {
+    URL.revokeObjectURL(imagenPrincipalPreview.value)
+  }
+  imagenesAdicionalesPreview.value.forEach(url => {
+    if (url && typeof url === 'string' && url.startsWith('blob:')) {
+      URL.revokeObjectURL(url)
+    }
+  })
+})
+
 onMounted(async () => {
+  loading.value = true
+  error.value = null
+
   try {
-    loading.value = true
-    
+    console.log('ID del producto:', route.params.id)
+    console.log('¿Modo edición?:', isEditing.value)
+
     // Cargar categorías y marcas
     const [categoriasData, marcasData] = await Promise.all([
       categoriaStore.fetchCategorias(),
       marcaStore.fetchMarcas()
     ])
-    
-    categorias.value = categoriasData.map(c => ({
-      value: c.id,
-      label: c.nombre
-    }))
-    
-    marcas.value = marcasData.map(m => ({
-      value: m.id,
-      label: m.nombre
-    }))
 
-    // Si estamos editando, cargar datos del producto
-    if (isEditing) {
-      const producto = await productoStore.fetchProductoById(route.params.id)
-      formData.value = { ...producto }
+    if (categoriasData) {
+      categorias.value = categoriasData.map(cat => ({
+        value: cat.id,
+        label: cat.nombre
+      }))
     }
-  } catch (err) {
-    error.value = 'Error al cargar los datos'
-    console.error(err)
+
+    if (marcasData) {
+      marcas.value = marcasData.map(marca => ({
+        value: marca.id,
+        label: marca.nombre
+      }))
+    }
+
+    // Si estamos editando, cargar los datos del producto
+    if (isEditing.value) {
+      try {
+        const producto = await productoStore.fetchProducto(route.params.id)
+        console.log('Producto cargado:', producto)
+        
+        if (producto) {
+          formData.value = {
+            nombre: producto.nombre || '',
+            descripcion: producto.descripcion || '',
+            codigo: producto.codigo_sku || '',
+            tipo_codigo: producto.codigo_sku?.includes('BARRA') ? 'BARRA' : 'NORMAL',
+            cantidad_mayoreo: producto.cantidad_mayoreo || '',
+            precio_l1: producto.precio_l1 || '',
+            precio_l2: producto.precio_l2 || '',
+            precio_l3: producto.precio_l3 || '',
+            precio_l4: producto.precio_l4 || '',
+            categoria_id: producto.categoria_id || '',
+            marca_id: producto.marca_id || '',
+            imagen_url: producto.imagen_url || '',
+            imagenes_adicionales: producto.imagenes_adicionales || [],
+            agotado: producto.agotado || false
+          }
+          
+          // Establecer preview de imagen principal
+          if (producto.imagen_url) {
+            imagenPrincipalPreview.value = producto.imagen_url
+          }
+          
+          // Establecer preview de imágenes adicionales
+          if (producto.imagenes_adicionales) {
+            imagenesAdicionalesPreview.value = producto.imagenes_adicionales
+          }
+        } else {
+          error.value = 'No se pudo cargar el producto'
+          router.push('/dashboard/productos')
+        }
+      } catch (error) {
+        console.error('Error al cargar el producto:', error)
+        error.value = 'Error al cargar el producto'
+        router.push('/dashboard/productos')
+      }
+    }
+  } catch (error) {
+    console.error('Error al cargar datos:', error)
+    error.value = 'Error al cargar los datos necesarios'
   } finally {
     loading.value = false
+  }
+})
+
+// Actualizar el código cuando cambia el tipo
+watch(() => formData.value.tipo_codigo, (newValue) => {
+  if (newValue === 'BARRA' && !formData.value.codigo.includes('BARRA')) {
+    formData.value.codigo = 'BARRA-' + formData.value.codigo
+  } else if (newValue === 'NORMAL' && formData.value.codigo.includes('BARRA-')) {
+    formData.value.codigo = formData.value.codigo.replace('BARRA-', '')
   }
 })
 
@@ -75,18 +180,31 @@ const handleSubmit = async () => {
   error.value = null
 
   try {
-    if (isEditing) {
-      await productoStore.updateProducto(route.params.id, formData.value)
+    // Preparar los datos para enviar
+    const datosParaEnviar = { ...formData.value }
+    
+    // Asegurarnos de que el estado se envíe correctamente
+    datosParaEnviar.estado = formData.value.agotado ? 'inactivo' : 'activo'
+    
+    if (isEditing.value) {
+      await productoStore.actualizarProducto(route.params.id, datosParaEnviar)
     } else {
-      await productoStore.createProducto(formData.value)
+      await productoStore.createProducto(datosParaEnviar)
     }
     router.push('/dashboard/productos')
   } catch (err) {
     error.value = err.response?.data?.message || 'Error al guardar el producto'
+    console.error('Error en handleSubmit:', err)
   } finally {
     saving.value = false
   }
 }
+
+const eliminarImagenAdicional = (index) => {
+  if (formData.value.imagenes_adicionales) {
+    formData.value.imagenes_adicionales.splice(index, 1);
+  }
+};
 </script>
 
 <template>
@@ -113,8 +231,22 @@ const handleSubmit = async () => {
           
           <BaseInput
             v-model="formData.codigo"
-            label="Código"
+            label="Código del producto"
+            placeholder="Código interno o código de barras"
+          />
+
+          <BaseSelect
+            v-model="formData.tipo_codigo"
+            label="Tipo de código"
+            :options="tiposCodigo"
             required
+          />
+
+          <BaseInput
+            v-model="formData.cantidad_mayoreo"
+            label="Cantidad para mayoreo"
+            type="number"
+            placeholder="Cantidad mínima para precio mayorista"
           />
           
           <BaseSelect
@@ -133,51 +265,55 @@ const handleSubmit = async () => {
         </div>
 
         <!-- Precios -->
-        <div class="mt-6 grid grid-cols-1 md:grid-cols-4 gap-6">
-          <BaseInput
-            v-model="formData.precio_l1"
-            label="Precio L1"
-            type="number"
-            required
-          />
+        <div class="mt-6 space-y-4">
+          <h3 class="text-lg font-medium text-gray-900">Precios</h3>
           
-          <BaseInput
-            v-model="formData.precio_l2"
-            label="Precio L2"
-            type="number"
-            required
-          />
-          
-          <BaseInput
-            v-model="formData.precio_l3"
-            label="Precio L3"
-            type="number"
-            required
-          />
-          
-          <BaseInput
-            v-model="formData.precio_l4"
-            label="Precio L4"
-            type="number"
-            required
-          />
-        </div>
+          <!-- Precio L1 (Precio Base) -->
+          <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+            <h4 class="text-sm font-medium text-gray-700 mb-2">Precio Base (L1)</h4>
+            <BaseInput
+              v-model="formData.precio_l1"
+              type="number"
+              label="Precio Base"
+              placeholder="0.00"
+              required
+              step="0.01"
+              min="0"
+            />
+            <p class="mt-1 text-sm text-gray-500">Este es el precio base del producto</p>
+          </div>
 
-        <!-- Stock y cantidad mayoreo -->
-        <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-          <BaseInput
-            v-model="formData.stock"
-            label="Stock"
-            type="number"
-            required
-          />
-          
-          <BaseInput
-            v-model="formData.cantidad_mayoreo"
-            label="Cantidad mayoreo"
-            type="number"
-            required
-          />
+          <!-- Precios de Mayoreo -->
+          <div class="mt-4">
+            <h4 class="text-sm font-medium text-gray-700 mb-2">Precios de Mayoreo</h4>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <BaseInput
+                v-model="formData.precio_l2"
+                type="number"
+                label="Precio L2"
+                placeholder="0.00"
+                step="0.01"
+                min="0"
+              />
+              <BaseInput
+                v-model="formData.precio_l3"
+                type="number"
+                label="Precio L3"
+                placeholder="0.00"
+                step="0.01"
+                min="0"
+              />
+              <BaseInput
+                v-model="formData.precio_l4"
+                type="number"
+                label="Precio L4"
+                placeholder="0.00"
+                step="0.01"
+                min="0"
+              />
+            </div>
+            <p class="mt-1 text-sm text-gray-500">Estos son los precios para ventas al mayoreo</p>
+          </div>
         </div>
 
         <!-- Descripción -->
@@ -192,14 +328,81 @@ const handleSubmit = async () => {
           />
         </div>
 
-        <!-- URL de imagen -->
-        <div class="mt-6">
-          <BaseInput
-            v-model="formData.imagen_url"
-            label="URL de imagen"
-            type="url"
-            required
-          />
+        <!-- Imágenes -->
+        <div class="mt-6 space-y-6">
+          <h3 class="text-lg font-medium text-gray-900">Imágenes del Producto</h3>
+          
+          <!-- Imagen Principal -->
+          <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+            <h4 class="text-sm font-medium text-gray-700 mb-2">Imagen Principal</h4>
+            <div class="flex items-start space-x-4">
+              <!-- Preview de imagen actual -->
+              <div v-if="imagenPrincipalPreview" class="w-32 h-32 relative">
+                <img
+                  :src="imagenPrincipalPreview"
+                  alt="Preview"
+                  class="w-32 h-32 object-cover rounded-lg"
+                />
+              </div>
+              
+              <!-- Input para nueva imagen -->
+              <div class="flex-1">
+                <input
+                  type="file"
+                  @change="handleImagenPrincipal"
+                  accept="image/*"
+                  class="block w-full text-sm text-gray-500
+                    file:mr-4 file:py-2 file:px-4
+                    file:rounded-full file:border-0
+                    file:text-sm file:font-semibold
+                    file:bg-[#33c7d1] file:text-white
+                    hover:file:bg-[#2ba3ac]"
+                />
+                <p class="mt-1 text-sm text-gray-500">
+                  Selecciona una nueva imagen principal para el producto
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Imágenes Adicionales -->
+          <div class="space-y-4">
+            <h3 class="text-lg font-medium text-gray-900">Imágenes Adicionales</h3>
+            <p class="text-sm text-gray-500">Puedes agregar hasta 5 imágenes adicionales del producto</p>
+            
+            <!-- Vista previa de imágenes adicionales existentes -->
+            <div v-if="formData.imagenes_adicionales?.length > 0" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+              <div v-for="(imagen, index) in formData.imagenes_adicionales" :key="index" class="relative group">
+                <img :src="imagen" :alt="`Imagen adicional ${index + 1}`" class="w-full h-32 object-cover rounded-lg">
+                <button 
+                  @click="eliminarImagenAdicional(index)"
+                  class="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- Input para nuevas imágenes adicionales -->
+            <div class="mt-4">
+              <label class="block text-sm font-medium text-gray-700">Agregar más imágenes</label>
+              <input
+                type="file"
+                @change="handleImagenesAdicionales"
+                multiple
+                accept="image/*"
+                class="mt-1 block w-full text-sm text-gray-500
+                  file:mr-4 file:py-2 file:px-4
+                  file:rounded-full file:border-0
+                  file:text-sm file:font-semibold
+                  file:bg-[#33c7d1] file:text-white
+                  hover:file:bg-[#2ab3bc]"
+              >
+              <p class="mt-1 text-sm text-gray-500">
+                Selecciona hasta 5 imágenes adicionales
+              </p>
+            </div>
+          </div>
         </div>
 
         <!-- Estado -->
@@ -207,10 +410,10 @@ const handleSubmit = async () => {
           <label class="inline-flex items-center">
             <input
               type="checkbox"
-              v-model="formData.activo"
+              v-model="formData.agotado"
               class="rounded border-gray-300 text-[#33c7d1] shadow-sm focus:border-[#33c7d1] focus:ring-[#33c7d1]"
             >
-            <span class="ml-2 text-sm text-gray-600">Producto activo</span>
+            <span class="ml-2 text-sm text-gray-600">Producto agotado</span>
           </label>
         </div>
       </div>

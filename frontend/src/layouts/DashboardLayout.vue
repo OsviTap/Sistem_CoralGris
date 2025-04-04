@@ -83,7 +83,15 @@ if (!authStore.canAccessDashboard) {
         </nav>
 
         <!-- Footer del sidebar -->
-        <div class="p-4 border-t">
+        <div class="p-4 border-t space-y-2">
+          <router-link 
+            to="/" 
+            class="flex items-center justify-center w-full px-4 py-2 bg-[#CF33D1] hover:bg-[#a326a5] text-white rounded-lg transition-colors duration-300 shadow-lg hover:shadow-xl"
+          >
+            <i class="fas fa-store mr-2 text-lg"></i>
+            <span class="font-medium">Ir a la Tienda</span>
+          </router-link>
+
           <button 
             @click="handleLogout"
             class="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-100 rounded-lg"

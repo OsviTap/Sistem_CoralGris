@@ -47,7 +47,6 @@ const tableHeaders = [
   { key: 'producto', label: 'Producto' },
   { key: 'precios', label: 'Precios (L1/L2/L3/L4)' },
   { key: 'promocion', label: 'Promoción' },
-  { key: 'stock', label: 'Stock' },
   { key: 'estado', label: 'Estado' },
   { key: 'acciones', label: 'Acciones' }
 ]
@@ -79,56 +78,44 @@ const crearProducto = () => {
   router.push('/dashboard/productos/crear')
 }
 
-const cambiarEstadoStock = async (id) => {
+const cambiarEstadoStock = async (producto) => {
   try {
-    const producto = productos.value.find(p => p.id === id)
-    if (!producto) {
-      throw new Error('Producto no encontrado')
-    }
-    
+    // Determinar el nuevo estado basado en el estado actual
     const nuevoEstado = producto.estado === 'activo' ? 'inactivo' : 'activo'
+    const nuevoAgotado = nuevoEstado === 'inactivo'
     
-    const result = await Swal.fire({
-      title: '¿Cambiar estado de stock?',
-      text: `¿Desea marcar este producto como ${nuevoEstado === 'activo' ? 'con stock' : 'sin stock'}?`,
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#33c7d1',
-      cancelButtonColor: '#d33',
-      confirmButtonText: 'Sí, cambiar',
-      cancelButtonText: 'Cancelar'
-    })
-
-    if (result.isConfirmed) {
-      try {
-        console.log('Enviando actualización para producto:', id)
-        const datosActualizacion = {
-          estado: nuevoEstado,
-          agotado: nuevoEstado === 'inactivo'
-        }
-        console.log('Datos de actualización:', datosActualizacion)
-        
-        await productoStore.updateProducto(id, datosActualizacion)
-        await productoStore.fetchProductos()
-        productos.value = productoStore.productos
-        
-        await Swal.fire({
-          title: '¡Actualizado!',
-          text: 'El estado del producto ha sido actualizado.',
-          icon: 'success',
-          confirmButtonColor: '#33c7d1'
-        })
-      } catch (error) {
-        throw new Error(error.message || 'Error al actualizar el estado del producto')
-      }
+    const datosActualizados = {
+      estado: nuevoEstado,
+      agotado: nuevoAgotado
     }
+    
+    console.log('Cambiando estado del producto:', {
+      id: producto.id,
+      estadoActual: producto.estado,
+      agotadoActual: producto.agotado,
+      nuevoEstado: nuevoEstado,
+      nuevoAgotado: nuevoAgotado
+    })
+    
+    await productoStore.actualizarProducto(producto.id, datosActualizados)
+    
+    // Mostrar mensaje de éxito
+    Swal.fire({
+      icon: 'success',
+      title: 'Estado actualizado',
+      text: `El producto ahora está ${nuevoEstado === 'activo' ? 'disponible' : 'agotado'}`,
+      timer: 2000,
+      showConfirmButton: false
+    })
+    
+    // Recargar la lista de productos
+    await productoStore.fetchProductos()
   } catch (error) {
     console.error('Error completo:', error)
-    await Swal.fire({
-      title: 'Error',
-      text: error.message || 'No se pudo actualizar el estado del producto',
+    Swal.fire({
       icon: 'error',
-      confirmButtonColor: '#d33'
+      title: 'Error',
+      text: 'No se pudo actualizar el estado del producto'
     })
   }
 }
@@ -231,33 +218,39 @@ onMounted(async () => {
             <div class="text-sm text-gray-900">{{ producto.promocion ? producto.promocion.nombre : 'Sin promoción' }}</div>
           </td>
           <td class="px-6 py-4 whitespace-nowrap">
-            <div class="text-sm text-gray-900">{{ producto.stock }}</div>
-          </td>
-          <td class="px-6 py-4 whitespace-nowrap">
             <span
               :class="{
-                'px-2 py-1 rounded-full text-sm font-semibold': true,
-                'bg-green-100 text-green-800': producto.estado === 'activo',
-                'bg-red-100 text-red-800': producto.estado === 'inactivo'
+                'px-2 py-1 text-xs font-medium rounded-full': true,
+                'bg-green-100 text-green-800': !producto.agotado && producto.estado === 'activo',
+                'bg-red-100 text-red-800': producto.agotado || producto.estado === 'inactivo'
               }"
             >
-              {{ producto.estado === 'activo' ? 'Con Stock' : 'Sin Stock' }}
+              {{ producto.agotado || producto.estado === 'inactivo' ? 'Agotado' : 'Disponible' }}
             </span>
           </td>
           <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-            <div class="flex space-x-2">
+            <div class="flex justify-end space-x-4">
               <button
-                @click="editarProducto(producto.id)"
-                class="text-blue-600 hover:text-blue-800"
+                @click="cambiarEstadoStock(producto)"
+                class="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                :class="{
+                  'text-green-600 hover:text-green-700': producto.agotado || producto.estado === 'inactivo',
+                  'text-red-600 hover:text-red-700': !producto.agotado && producto.estado === 'activo'
+                }"
+                :title="producto.agotado || producto.estado === 'inactivo' ? 'Marcar como disponible' : 'Marcar como agotado'"
+              >
+                <i class="fas fa-box" :class="{
+                  'fa-box': !producto.agotado && producto.estado === 'activo',
+                  'fa-box-open': producto.agotado || producto.estado === 'inactivo'
+                }"></i>
+              </button>
+              <router-link
+                :to="`/dashboard/productos/${producto.id}/editar`"
+                class="p-2 text-blue-600 hover:text-blue-700 hover:bg-gray-100 rounded-full transition-colors"
+                title="Editar producto"
               >
                 <i class="fas fa-edit"></i>
-              </button>
-              <button
-                @click="cambiarEstadoStock(producto.id)"
-                class="text-yellow-600 hover:text-yellow-800"
-              >
-                <i class="fas fa-box"></i>
-              </button>
+              </router-link>
             </div>
           </td>
         </tr>

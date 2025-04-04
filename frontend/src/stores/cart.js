@@ -102,10 +102,20 @@ export const useCartStore = defineStore('cart', {
     // Actualizar precios según nivel de usuario
     updatePrices(nivelPrecio) {
       this.items.forEach(item => {
-        // Aquí deberías hacer una llamada a la API para obtener el precio actualizado
-        // según el nivel del usuario, o manejar la lógica según tu implementación
-        // Por ahora solo actualizamos con el precio L1
-        item.precio = item.precio_l1
+        const nivel = nivelPrecio.toLowerCase()
+        // Obtener el precio según el nivel del usuario
+        const precioNivel = item[`precio_${nivel}`]
+        
+        // Si existe precio para el nivel del usuario, usarlo
+        if (precioNivel) {
+          item.precio = precioNivel
+        } else {
+          // Si no existe precio para el nivel, usar el precio más alto disponible
+          if (item.precio_l4) item.precio = item.precio_l4
+          else if (item.precio_l3) item.precio = item.precio_l3
+          else if (item.precio_l2) item.precio = item.precio_l2
+          else item.precio = item.precio_l1
+        }
       })
       this.saveCart()
     },

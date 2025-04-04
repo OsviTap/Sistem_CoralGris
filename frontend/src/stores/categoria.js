@@ -11,13 +11,15 @@ export const useCategoriaStore = defineStore('categoria', {
   actions: {
     async fetchCategorias() {
       this.loading = true
+      this.error = null
       try {
         const response = await axios.get('/categorias')
         this.categorias = response.data
-        this.error = null
+        return this.categorias
       } catch (error) {
-        this.error = error.message || 'Error al cargar categorías'
-        console.error('Error:', error)
+        this.error = error.response?.data?.message || 'Error al cargar las categorías'
+        console.error('Error al cargar categorías:', error)
+        throw error
       } finally {
         this.loading = false
       }

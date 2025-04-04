@@ -224,21 +224,13 @@ const productoController = {
   updateProducto: async (req, res) => {
     try {
       const { id } = req.params;
-      const {
-        nombre,
-        descripcion,
-        categoria_id,
-        subcategoria_id,
-        marca_id,
-        precio_l1,
-        precio_l2,
-        precio_l3,
-        precio_l4,
-        stock,
+      const datosActualizacion = { ...req.body };
 
-        codigo_sku,
-        colores
-      } = req.body;
+      console.log('Datos recibidos para actualizar producto:', datosActualizacion);
+      console.log('Archivos recibidos:', {
+        imagen: req.files?.imagen,
+        imagenes_adicionales: req.files?.imagenes_adicionales
+      });
 
       const producto = await Producto.findByPk(id);
       
@@ -246,56 +238,149 @@ const productoController = {
         return res.status(404).json({ message: 'Producto no encontrado' });
       }
 
-      let imagen_url = producto.imagen_url;
-      if (req.file) {
-        imagen_url = await uploadImage(req.file, 'productos');
+      // Si se está actualizando el estado o agotado
+      if (datosActualizacion.estado !== undefined) {
+        datosActualizacion.agotado = datosActualizacion.estado === 'inactivo';
+      } else if (datosActualizacion.agotado !== undefined) {
+        datosActualizacion.estado = datosActualizacion.agotado ? 'inactivo' : 'activo';
       }
 
-      await producto.update({
-        nombre,
-        descripcion,
-        categoria_id,
-        marca_id,
-        precio_l1,
-        precio_l2,
-        precio_l3,
-        precio_l4,
-        stock,
-        codigo_sku,
-        imagen_url,
-        subcategoria_id
-      });
+      // Manejar la imagen principal si se proporciona
+      if (req.files?.imagen?.[0]) {
+        const file = req.files.imagen[0];
+        
+        // Si existe una imagen anterior, eliminarla de Supabase
+        if (producto.imagen_url) {
+          const oldPath = producto.imagen_url.split('/').slice(-2).join('/');
+          const { error: deleteError } = await supabase
+            .storage
+            .from('libreria-images')
+            .remove([oldPath]);
 
+          if (deleteError) {
+            console.error('Error al eliminar imagen anterior:', deleteError);
+          }
+        }
 
-      if (colores) {
-        // Eliminar colores anteriores
-        await ColorProducto.destroy({
-          where: { producto_id: id }
-        });
+        // Subir nueva imagen
+        const filePath = `productos/${Date.now()}-${file.originalname.replace(/\s+/g, '_')}`;
 
-        // Crear nuevos colores
-        if (colores.length > 0) {
-          await ColorProducto.bulkCreate(
-            colores.map(color => ({
-              producto_id: id,
-              ...color
-            }))
-          );
+        const { data: uploadData, error: uploadError } = await supabase
+          .storage
+          .from('libreria-images')
+          .upload(filePath, file.buffer, {
+            contentType: file.mimetype,
+            cacheControl: '3600'
+          });
+
+        if (uploadError) throw uploadError;
+
+        // Obtener nueva URL pública
+        const { data: { publicUrl } } = supabase
+          .storage
+          .from('libreria-images')
+          .getPublicUrl(filePath);
+
+        datosActualizacion.imagen_url = publicUrl;
+      }
+
+      // Manejar imágenes adicionales
+      let imagenesAdicionales = [];
+      
+      // Si hay imágenes adicionales existentes, mantenerlas
+      if (producto.imagenes_adicionales) {
+        imagenesAdicionales = [...producto.imagenes_adicionales];
+      }
+
+      // Si se proporcionan nuevas imágenes adicionales
+      if (req.files?.imagenes_adicionales?.length > 0) {
+        // Eliminar imágenes anteriores si se solicita
+        if (datosActualizacion.eliminar_imagenes_anteriores) {
+          for (const imagenUrl of imagenesAdicionales) {
+            const oldPath = imagenUrl.split('/').slice(-2).join('/');
+            const { error: deleteError } = await supabase
+              .storage
+              .from('libreria-images')
+              .remove([oldPath]);
+
+            if (deleteError) {
+              console.error('Error al eliminar imagen adicional anterior:', deleteError);
+            }
+          }
+          imagenesAdicionales = [];
+        }
+
+        // Subir nuevas imágenes adicionales
+        for (const file of req.files.imagenes_adicionales) {
+          const filePath = `productos/adicionales/${Date.now()}-${file.originalname.replace(/\s+/g, '_')}`;
+
+          const { data: uploadData, error: uploadError } = await supabase
+            .storage
+            .from('libreria-images')
+            .upload(filePath, file.buffer, {
+              contentType: file.mimetype,
+              cacheControl: '3600'
+            });
+
+          if (uploadError) throw uploadError;
+
+          // Obtener URL pública
+          const { data: { publicUrl } } = supabase
+            .storage
+            .from('libreria-images')
+            .getPublicUrl(filePath);
+
+          imagenesAdicionales.push(publicUrl);
         }
       }
 
+      // Asignar las imágenes adicionales al objeto de actualización
+      datosActualizacion.imagenes_adicionales = imagenesAdicionales;
+
+      // Convertir campos numéricos
+      if (datosActualizacion.precio_l1) datosActualizacion.precio_l1 = Number(datosActualizacion.precio_l1);
+      if (datosActualizacion.precio_l2) datosActualizacion.precio_l2 = Number(datosActualizacion.precio_l2);
+      if (datosActualizacion.precio_l3) datosActualizacion.precio_l3 = Number(datosActualizacion.precio_l3);
+      if (datosActualizacion.precio_l4) datosActualizacion.precio_l4 = Number(datosActualizacion.precio_l4);
+      if (datosActualizacion.cantidad_mayoreo) datosActualizacion.cantidad_mayoreo = Number(datosActualizacion.cantidad_mayoreo);
+
+      // Eliminar campos que no deben actualizarse directamente
+      delete datosActualizacion.created_at;
+      delete datosActualizacion.updated_at;
+      delete datosActualizacion.categoria;
+      delete datosActualizacion.marca;
+      delete datosActualizacion.precios;
+      delete datosActualizacion.precio_actual;
+      delete datosActualizacion.eliminar_imagenes_anteriores;
+
+      console.log('Datos a actualizar:', datosActualizacion);
+
+      await producto.update(datosActualizacion);
+
       const productoActualizado = await Producto.findByPk(id, {
         include: [
-          { model: Categoria },
-          { model: Marca },
-          { model: ColorProducto }
+          { 
+            model: Categoria,
+            as: 'categoria'
+          },
+          { 
+            model: Marca,
+            as: 'marca'
+          }
         ]
       });
 
-      res.json(productoActualizado);
+      res.json({
+        producto: productoActualizado,
+        message: 'Producto actualizado exitosamente'
+      });
+
     } catch (error) {
       console.error('Error al actualizar producto:', error);
-      res.status(500).json({ message: 'Error al actualizar el producto' });
+      res.status(500).json({ 
+        message: 'Error al actualizar el producto',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
   },
 
@@ -798,6 +883,72 @@ const productoController = {
         error: 'Error al obtener tendencias',
         details: error.message
       })
+    }
+  },
+
+  // Obtener productos recomendados basados en categoría y marca
+  getProductosRecomendadosBasadosEnCategoria: async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Obtener el producto actual
+      const producto = await Producto.findByPk(id, {
+        include: [
+          { model: Categoria, as: 'categoria' },
+          { model: Marca, as: 'marca' }
+        ]
+      });
+      
+      if (!producto) {
+        return res.status(404).json({ message: 'Producto no encontrado' });
+      }
+
+      // Buscar productos de la misma categoría o marca, excluyendo el producto actual
+      const productosRecomendados = await Producto.findAll({
+        where: {
+          id: { [Op.ne]: id },
+          [Op.or]: [
+            { categoria_id: producto.categoria_id },
+            { marca_id: producto.marca_id }
+          ],
+          agotado: false
+        },
+        include: [
+          { model: Categoria, as: 'categoria' },
+          { model: Marca, as: 'marca' }
+        ],
+        limit: 4
+      });
+
+      res.json(productosRecomendados);
+    } catch (error) {
+      console.error('Error al obtener productos recomendados:', error);
+      res.status(500).json({ message: 'Error al obtener productos recomendados' });
+    }
+  },
+
+  // Obtener productos en oferta
+  getProductosEnOferta: async (req, res) => {
+    try {
+      const productosEnOferta = await Producto.findAll({
+        where: {
+          precio_l2: {
+            [Op.ne]: null,
+            [Op.lt]: Sequelize.col('precio_l1')
+          },
+          agotado: false
+        },
+        include: [
+          { model: Categoria, as: 'categoria' },
+          { model: Marca, as: 'marca' }
+        ],
+        limit: 6
+      });
+
+      res.json(productosEnOferta);
+    } catch (error) {
+      console.error('Error al obtener productos en oferta:', error);
+      res.status(500).json({ message: 'Error al obtener productos en oferta' });
     }
   }
 };

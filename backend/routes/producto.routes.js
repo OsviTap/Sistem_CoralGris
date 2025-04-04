@@ -10,6 +10,8 @@ const { productValidations } = require('../middleware/validate');
 router.get('/', productoController.getProductos);
 router.get('/recomendados', productoController.getProductosRecomendados);
 router.get('/:id', productoController.getProductoById);
+router.get('/:id/recomendados', productoController.getProductosRecomendadosBasadosEnCategoria);
+router.get('/ofertas', productoController.getProductosEnOferta);
 
 // Rutas protegidas - solo admin
 router.post('/', 
@@ -22,7 +24,10 @@ router.post('/',
 router.put('/:id',
   authMiddleware,
   adminMiddleware,
-  upload.single('imagen'),
+  upload.fields([
+    { name: 'imagen', maxCount: 1 },
+    { name: 'imagenes_adicionales', maxCount: 5 }
+  ]),
   productoController.updateProducto
 );
 
