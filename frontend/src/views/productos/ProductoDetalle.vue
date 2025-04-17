@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProductoStore } from '@/stores/producto'
 import { useCartStore } from '@/stores/cart'
@@ -25,12 +25,16 @@ const mainImage = ref(null)
 const isZooming = ref(false)
 const activeTab = ref('descripcion')
 const zoomEnabled = ref(true)
+const isZoomed = ref(false)
 
 // Computed properties para la navegación de imágenes
-const hasPreviousImage = computed(() => currentImageIndex.value > -1)
-const hasNextImage = computed(() => {
-  return currentImageIndex.value < (producto.value?.imagenes_adicionales?.length || 0) - 1
+const allImages = computed(() => {
+  if (!producto.value) return []
+  return [producto.value.imagen_url, ...(producto.value.imagenes_adicionales || [])]
 })
+
+const hasPreviousImage = computed(() => currentImageIndex.value > 0)
+const hasNextImage = computed(() => currentImageIndex.value < allImages.value.length - 1)
 
 // Computed properties para precios
 const precioNormal = computed(() => {
@@ -92,24 +96,20 @@ const calcularDescuento = computed(() => {
 const previousImage = () => {
   if (hasPreviousImage.value) {
     currentImageIndex.value--
-    imagenActual.value = currentImageIndex.value === -1 
-      ? producto.value.imagen_url 
-      : producto.value.imagenes_adicionales[currentImageIndex.value]
+    imagenActual.value = allImages.value[currentImageIndex.value]
   }
 }
 
 const nextImage = () => {
   if (hasNextImage.value) {
     currentImageIndex.value++
-    imagenActual.value = producto.value.imagenes_adicionales[currentImageIndex.value]
+    imagenActual.value = allImages.value[currentImageIndex.value]
   }
 }
 
 const selectImage = (index) => {
   currentImageIndex.value = index
-  imagenActual.value = index === -1 
-    ? producto.value.imagen_url 
-    : producto.value.imagenes_adicionales[index]
+  imagenActual.value = allImages.value[index]
 }
 
 const formatPrice = (price) => {
@@ -260,14 +260,21 @@ const resetZoom = () => {
   isZooming.value = false
 }
 
-// Computed para todas las imágenes
-const allImages = computed(() => {
-  if (!producto.value) return []
-  return [producto.value.imagen_url, ...(producto.value.imagenes_adicionales || [])]
-})
+const toggleZoom = () => {
+  isZoomed.value = !isZoomed.value
+  if (isZoomed.value) {
+    document.body.style.overflow = 'hidden'
+  } else {
+    document.body.style.overflow = ''
+  }
+}
 
 onMounted(() => {
   cargarProducto()
+})
+
+onBeforeUnmount(() => {
+  document.body.style.overflow = ''
 })
 </script>
 
@@ -312,58 +319,52 @@ onMounted(() => {
       <!-- Sección principal del producto -->
       <div class="producto-main-section">
         <!-- Galería de imágenes -->
-        <div class="producto-gallery">
-          <div class="gallery-container">
-            <!-- Miniaturas verticales -->
-            <div class="thumbnails-vertical">
-              <button 
-                class="thumbnail-item"
-                :class="{ active: currentImageIndex === -1 }"
-                @click="selectImage(-1)"
+        <div class="gallery-container">
+          <!-- Imagen principal -->
+          <div class="main-image-wrapper">
+            <div 
+              class="main-image" 
+              :class="{ 'zoomed': isZoomed }"
+              @click="toggleZoom"
+            >
+              <img 
+                :src="imagenActual" 
+                :alt="producto.nombre"
               >
-                <img :src="producto.imagen_url" :alt="producto.nombre">
+            </div>
+            
+            <!-- Controles de navegación -->
+            <div class="gallery-controls">
+              <button 
+                class="nav-button prev"
+                @click.stop="previousImage"
+                :disabled="!hasPreviousImage"
+              >
+                <i class="fas fa-chevron-left"></i>
               </button>
               <button 
-                v-for="(imagen, index) in producto.imagenes_adicionales"
-                :key="index"
-                class="thumbnail-item"
-                :class="{ active: currentImageIndex === index }"
-                @click="selectImage(index)"
+                class="nav-button next"
+                @click.stop="nextImage"
+                :disabled="!hasNextImage"
               >
-                <img :src="imagen" :alt="`${producto.nombre} - Imagen ${index + 1}`">
+                <i class="fas fa-chevron-right"></i>
               </button>
             </div>
+          </div>
 
-            <!-- Imagen principal con zoom -->
-            <div class="main-image-wrapper">
-              <div class="zoom-toggle">
-                <label class="toggle-label">
-                  <input 
-                    type="checkbox" 
-                    v-model="zoomEnabled"
-                    class="toggle-input"
-                  >
-                  <span class="toggle-text">
-                    <i class="fas fa-search-plus"></i>
-                    Zoom
-                  </span>
-                </label>
-              </div>
-
-              <div 
-                class="main-image-container" 
-                @mousemove="zoomEnabled ? handleZoom($event) : null"
-                @mouseleave="zoomEnabled ? resetZoom() : null"
+          <!-- Carrusel de miniaturas -->
+          <div class="thumbnails-carousel">
+            <div 
+              v-for="(imagen, index) in allImages" 
+              :key="index"
+              class="thumbnail"
+              :class="{ 'active': currentImageIndex === index }"
+              @click.stop="selectImage(index)"
+            >
+              <img 
+                :src="imagen" 
+                :alt="`Imagen ${index + 1}`"
               >
-                <img 
-                  :src="imagenActual" 
-                  :alt="producto.nombre"
-                  class="main-image"
-                  ref="mainImage"
-                  :class="{ 'zoom-enabled': zoomEnabled }"
-                >
-                <div class="zoom-lens" v-if="isZooming && zoomEnabled"></div>
-              </div>
             </div>
           </div>
         </div>
@@ -622,75 +623,145 @@ onMounted(() => {
 
 /* Galería mejorada */
 .gallery-container {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
   position: relative;
-}
-
-.thumbnails-vertical {
-  display: flex;
-  flex-direction: row;
-  gap: 0.5rem;
-  overflow-x: auto;
-  padding: 0.5rem;
-  order: 2;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-
-.thumbnails-vertical::-webkit-scrollbar {
-  display: none;
-}
-
-.thumbnail-item {
-  width: 60px;
-  height: 60px;
-  flex-shrink: 0;
-  border: 2px solid transparent;
-  border-radius: 8px;
-  overflow: hidden;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  padding: 0;
-  background: none;
-  position: relative;
-}
-
-.thumbnail-item::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 6px;
-  padding: 2px;
-  background: linear-gradient(45deg, #33c7d1, #FF1F6D);
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.thumbnail-item:hover::after,
-.thumbnail-item.active::after {
-  opacity: 1;
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
 }
 
 .main-image-wrapper {
-  order: 1;
   position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 1rem;
 }
 
-.zoom-toggle {
+.main-image {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  cursor: zoom-in;
+  background-color: #f8f9fa;
+}
+
+.main-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.5s ease;
+}
+
+.main-image:hover img {
+  transform: scale(1.1);
+}
+
+.main-image.zoomed {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 10000;
+  border-radius: 0;
+  cursor: zoom-out;
+  background-color: rgba(0, 0, 0, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.main-image.zoomed img {
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  transform: none;
+}
+
+.gallery-controls {
   position: absolute;
-  top: 1rem;
-  right: 1rem;
-  background: rgba(255, 255, 255, 0.9);
+  top: 50%;
+  left: 0;
+  right: 0;
+  transform: translateY(-50%);
+  display: flex;
+  justify-content: space-between;
+  padding: 0 1rem;
+  pointer-events: none;
+}
+
+.nav-button {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.9);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  pointer-events: auto;
+  color: #333;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.nav-button:hover:not(:disabled) {
+  background-color: white;
+  transform: scale(1.1);
+}
+
+.nav-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.thumbnails-carousel {
+  display: flex;
+  gap: 0.5rem;
   padding: 0.5rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  background: rgba(248, 249, 250, 0.5);
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  z-index: 2;
+}
+
+.thumbnails-carousel::-webkit-scrollbar {
+  display: none;
+}
+
+.thumbnail {
+  width: 60px;
+  height: 60px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.thumbnail.active {
+  border-color: #33c7d1;
+  transform: scale(1.1);
+}
+
+.thumbnail:hover:not(.active) {
+  transform: scale(1.1);
+  border-color: rgba(51, 199, 209, 0.5);
+}
+
+.thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.thumbnail:hover img {
+  transform: scale(1.2);
 }
 
 /* Información del producto mejorada */
@@ -911,23 +982,15 @@ onMounted(() => {
   }
 
   .gallery-container {
-    flex-direction: row;
+    max-width: 600px;
   }
 
-  .thumbnails-vertical {
-    flex-direction: column;
-    width: 80px;
-    overflow-x: visible;
-    overflow-y: auto;
-    order: 1;
+  .thumbnail {
+    width: 70px;
+    height: 70px;
   }
 
-  .thumbnail-item {
-    width: 100%;
-    height: 80px;
-  }
-
-  .main-image-wrapper {
+  .main-image {
     order: 2;
   }
 
@@ -965,15 +1028,12 @@ onMounted(() => {
   }
 
   .gallery-container {
-    gap: 1.5rem;
+    max-width: 700px;
   }
 
-  .thumbnails-vertical {
-    width: 100px;
-  }
-
-  .thumbnail-item {
-    height: 100px;
+  .thumbnail {
+    width: 80px;
+    height: 80px;
   }
 }
 

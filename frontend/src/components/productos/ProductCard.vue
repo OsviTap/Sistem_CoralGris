@@ -11,6 +11,7 @@ import SocialSharing from 'vue3-social-sharing'
 import QuickViewModal from './QuickViewModal.vue'
 import { defineProps, defineEmits } from 'vue'
 import CantidadModal from './CantidadModal.vue'
+import { Teleport } from 'vue'
 
 const props = defineProps({
   producto: {
@@ -323,6 +324,7 @@ const abrirCompartir = async () => {
 
 const openQuickView = () => {
   showQuickView.value = true
+  document.body.style.overflow = 'hidden'
 }
 
 const handleAgregarAlCarrito = (cantidadSeleccionada, precioFinal) => {
@@ -366,335 +368,286 @@ const openCantidadModal = () => {
     showCantidadModal.value = true
   }
 }
+
+const closeCantidadModal = () => {
+  showCantidadModal.value = false
+}
+
+const closeQuickView = () => {
+  showQuickView.value = false
+  document.body.style.overflow = ''
+}
 </script>
 
 <template>
-  <div>
-    <div class="product-card">
-      <div class="product-image">
-        <img 
-          :src="producto.imagen_url || '/placeholder.png'" 
-          :alt="producto.nombre"
-          @error="handleImageError"
-        />
-        <div class="product-overlay">
-          <button 
-            class="quick-view-btn"
-            @click.stop="openQuickView"
-          >
-            <i class="fas fa-eye"></i>
-          </button>
-          <button 
-            class="add-to-cart-btn"
-            @click.stop="openCantidadModal"
-            :class="{ 'out-of-stock': producto.agotado }"
-            :disabled="producto.agotado"
-          >
-            <i :class="producto.agotado ? 'fas fa-bell' : 'fas fa-shopping-cart'"></i>
-          </button>
-        </div>
-        <div v-if="producto.agotado" class="out-of-stock-badge">
-          <i class="fas fa-exclamation-circle"></i>
+  <div class="product-card" :class="{ 'out-of-stock': producto.agotado }">
+    <div class="product-image-container">
+      <img 
+        :src="producto.imagen_url || '/placeholder.png'" 
+        :alt="producto.nombre"
+        @error="handleImageError"
+        class="product-image"
+        @click="verDetalles"
+      />
+      
+      <!-- Badges -->
+      <div class="badges-container">
+        <div v-if="producto.agotado" class="badge sold-out">
           Agotado
         </div>
-        <div v-else class="stock-badge">
-          <i class="fas fa-check-circle"></i>
-          Disponible
+        <div v-else-if="producto.descuento" class="badge discount">
+          -{{ producto.descuento }}%
+        </div>
+        <div v-if="producto.nuevo" class="badge new">
+          Nuevo
         </div>
       </div>
-      <div class="product-info">
-        <div class="product-category">
-          {{ producto.categoria?.nombre || 'Sin categoría' }}
+
+      <!-- Acciones móviles -->
+      <div class="mobile-actions">
+        <button 
+          class="action-button add-to-cart"
+          @click.stop="openCantidadModal"
+          :disabled="producto.agotado"
+        >
+          <i :class="producto.agotado ? 'fas fa-bell' : 'fas fa-shopping-cart'" class="icon"></i>
+          <span class="button-text">{{ producto.agotado ? 'Notificar' : 'Agregar' }}</span>
+        </button>
+      </div>
+
+      <!-- Acciones desktop -->
+      <div class="desktop-actions">
+        <button 
+          class="action-icon-button view"
+          @click.stop="openQuickView"
+          title="Vista rápida"
+        >
+          <i class="fas fa-eye"></i>
+        </button>
+        <button 
+          class="action-icon-button cart"
+          @click.stop="openCantidadModal"
+          :disabled="producto.agotado"
+          :title="producto.agotado ? 'Producto agotado' : 'Agregar al carrito'"
+        >
+          <i :class="producto.agotado ? 'fas fa-bell' : 'fas fa-shopping-cart'"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="product-details" @click="verDetalles">
+      <div class="category-brand">
+        <span class="category">{{ producto.categoria?.nombre || 'Sin categoría' }}</span>
+        <span v-if="producto.marca?.nombre" class="brand">{{ producto.marca.nombre }}</span>
+      </div>
+      
+      <h3 class="product-name">{{ producto.nombre }}</h3>
+      
+      <div class="pricing">
+        <div class="price-container">
+          <span v-if="producto.precio_anterior" class="original-price">
+            Bs. {{ formatPrice(producto.precio_anterior) }}
+          </span>
+          <span class="current-price">Bs. {{ formatPrice(precioFinal) }}</span>
         </div>
-        <h3 class="product-name">{{ producto.nombre || 'Sin nombre' }}</h3>
-        <div class="product-brand" v-if="producto.marca?.nombre">
-          {{ producto.marca.nombre }}
-        </div>
-        <div class="price-section">
-          <div class="current-price">
-            <span class="price-label">Precio:</span>
-            <span class="price" :class="{ 'has-discount': mostrarPrecioTachado }">
-              ${{ formatPrice(precioFinal) }}
-            </span>
-            <span v-if="mostrarPrecioTachado" class="original-price">
-              ${{ formatPrice(props.producto.precio_l1) }}
-            </span>
-          </div>
-          
-          <div v-if="mostrarPrecioTachado" class="discount-explanation">
-            <i class="fas fa-info-circle"></i>
-            <span>{{ explicacionPrecioTachado }}</span>
-          </div>
-          
-          <div v-if="tienePrecioMayoreo" class="mayoreo-info">
-            <div class="mayoreo-header">
-              <i class="fas fa-percentage"></i>
-              <span>Precio por mayoreo disponible</span>
-            </div>
-            <div class="mayoreo-details">
-              <div class="mayoreo-price">
-                <span class="price-label">Precio mayoreo:</span>
-                <span class="price">${{ formatPrice(precioMayoreo) }}</span>
-              </div>
-              <div class="mayoreo-savings" v-if="cantidad >= cantidadMayoreo">
-                <span class="savings-label">Ahorro por unidad:</span>
-                <span class="savings-amount">${{ formatPrice(ahorroPorUnidad) }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div v-if="producto.agotado" class="notify-interest">
-          <button @click="registrarInteres" class="notify-button">
-            <i class="fas fa-bell"></i>
-            Notificar cuando esté disponible
-          </button>
+        <div v-if="producto.precio_l2" class="wholesale">
+          <span class="wholesale-label">Por mayor:</span>
+          <span class="wholesale-price">Bs. {{ formatPrice(producto.precio_l2) }}</span>
         </div>
       </div>
     </div>
 
-    <!-- Modal de vista rápida -->
     <Teleport to="body">
       <QuickViewModal
         v-if="showQuickView"
         :is-open="showQuickView"
         :producto="producto"
-        @close="showQuickView = false"
+        @close="closeQuickView"
       />
     </Teleport>
 
-    <!-- Modal de cantidad -->
-    <Teleport to="body">
-      <CantidadModal
-        v-if="showCantidadModal"
-        :is-open="showCantidadModal"
-        :producto="producto"
-        @close="showCantidadModal = false"
-        @confirmar="handleAgregarAlCarrito"
-      />
-    </Teleport>
+    <CantidadModal 
+      :is-open="showCantidadModal"
+      :producto="producto"
+      @close="closeCantidadModal"
+      @confirmar="handleAgregarAlCarrito"
+    />
   </div>
 </template>
 
 <style scoped>
 .product-card {
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-  transition: transform 0.3s ease;
-  position: relative;
+  @apply bg-white rounded-xl shadow-sm overflow-hidden transition-all duration-300;
+  border: 1px solid #f0f0f0;
 }
 
 .product-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  @apply shadow-md;
+  transform: translateY(-2px);
+}
+
+.product-image-container {
+  @apply relative overflow-hidden;
+  aspect-ratio: 1;
 }
 
 .product-image {
-  position: relative;
-  height: 200px;
-  overflow: hidden;
+  @apply w-full h-full object-cover transition-transform duration-300;
 }
 
-.product-image img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform 0.3s ease;
+.product-card:hover .product-image {
+  transform: scale(1.05);
 }
 
-.product-card:hover .product-image img {
-  transform: scale(1.1);
+.badges-container {
+  @apply absolute top-2 left-2 flex flex-col gap-1;
 }
 
-.product-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 1rem;
-  opacity: 0;
-  transition: opacity 0.3s ease;
+.badge {
+  @apply px-2 py-1 rounded-full text-xs font-medium;
 }
 
-.product-card:hover .product-overlay {
-  opacity: 1;
+.badge.sold-out {
+  @apply bg-gray-900/80 text-white;
 }
 
-.quick-view-btn,
-.add-to-cart-btn {
-  background: white;
-  border: none;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: transform 0.2s ease;
+.badge.discount {
+  @apply bg-red-500/90 text-white;
 }
 
-.quick-view-btn:hover,
-.add-to-cart-btn:hover {
-  transform: scale(1.1);
+.badge.new {
+  @apply bg-emerald-500/90 text-white;
 }
 
-.add-to-cart-btn:disabled {
-  background: #ccc;
-  cursor: not-allowed;
-  transform: none;
+/* Estilos específicos para móvil */
+@media (max-width: 639px) {
+  .product-card {
+    width: 100%;
+    margin: 0;
+  }
+
+  .product-image-container {
+    height: 140px;
+  }
+
+  .mobile-actions {
+    @apply absolute bottom-0 left-0 right-0 p-2;
+    background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+  }
+
+  .action-button {
+    @apply w-full flex items-center justify-center gap-1 rounded-lg py-1.5 px-2 text-xs font-medium;
+  }
+
+  .action-button.add-to-cart {
+    @apply bg-white text-gray-900 hover:bg-gray-100;
+  }
+
+  .product-details {
+    @apply p-2;
+  }
+
+  .category-brand {
+    @apply flex items-center gap-1 mb-0.5;
+  }
+
+  .category, .brand {
+    @apply text-[10px] text-gray-500;
+  }
+
+  .product-name {
+    @apply text-xs font-medium text-gray-900 line-clamp-2 mb-1 leading-tight;
+    min-height: 2.4em;
+  }
+
+  .current-price {
+    @apply text-sm font-semibold;
+  }
+
+  .wholesale {
+    @apply text-[10px];
+  }
+
+  .badge {
+    @apply text-[10px] px-1.5 py-0.5;
+  }
+
+  .desktop-actions {
+    @apply hidden;
+  }
 }
 
-.product-info {
-  padding: 1rem;
+/* Estilos para desktop */
+@media (min-width: 640px) {
+  .mobile-actions {
+    @apply hidden;
+  }
+
+  .desktop-actions {
+    @apply absolute inset-0 flex items-center justify-center gap-3 opacity-0 transition-all duration-300;
+    background: linear-gradient(to bottom, transparent, rgba(0,0,0,0.7));
+  }
+
+  .product-card:hover .desktop-actions {
+    @apply opacity-100;
+  }
+
+  .action-icon-button {
+    @apply w-10 h-10 rounded-full bg-white/90 flex items-center justify-center text-gray-700 hover:bg-white hover:text-[#33c7d1] transition-all duration-200 transform hover:scale-110;
+  }
+
+  .action-icon-button:disabled {
+    @apply opacity-50 cursor-not-allowed hover:scale-100 hover:bg-white/90 hover:text-gray-700;
+  }
+
+  .product-details {
+    @apply p-4;
+  }
+
+  .category-brand {
+    @apply flex items-center gap-2 mb-2;
+  }
+
+  .category, .brand {
+    @apply text-xs text-gray-500;
+  }
+
+  .product-name {
+    @apply text-base font-medium text-gray-900 line-clamp-2 mb-3 leading-snug;
+    min-height: 2.75em;
+  }
+
+  .pricing {
+    @apply space-y-2;
+  }
+
+  .price-container {
+    @apply flex items-baseline gap-2;
+  }
+
+  .original-price {
+    @apply text-sm text-gray-400 line-through;
+  }
+
+  .current-price {
+    @apply text-lg font-semibold text-gray-900;
+  }
+
+  .wholesale {
+    @apply flex items-center gap-2 text-sm text-gray-600;
+  }
+
+  .wholesale-price {
+    @apply font-medium text-gray-800;
+  }
 }
 
-.product-category {
-  font-size: 0.875rem;
-  color: #666;
-  margin-bottom: 0.5rem;
+/* Estado de agotado */
+.product-card.out-of-stock {
+  @apply opacity-90;
 }
 
-.product-name {
-  font-size: 1rem;
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-  color: #333;
-}
-
-.product-brand {
-  font-size: 0.875rem;
-  color: #666;
-  margin-bottom: 0.5rem;
-}
-
-.price-section {
-  margin-top: 1rem;
-}
-
-.current-price {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.price {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #33c7d1;
-}
-
-.original-price {
-  font-size: 1rem;
-  text-decoration: line-through;
-  color: #999;
-}
-
-.discount-explanation {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-  font-size: 0.875rem;
-  color: #666;
-}
-
-.discount-explanation i {
-  color: #33c7d1;
-}
-
-.mayoreo-info {
-  margin-top: 1rem;
-  padding: 0.75rem;
-  background-color: #f8f9fa;
-  border-radius: 0.5rem;
-}
-
-.mayoreo-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: #33c7d1;
-  font-weight: 500;
-}
-
-.mayoreo-details {
-  margin-top: 0.5rem;
-}
-
-.mayoreo-price {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.savings-label {
-  color: #666;
-}
-
-.savings-amount {
-  color: #28a745;
-  font-weight: 500;
-}
-
-.product-stock {
-  font-size: 0.875rem;
-  color: #28a745;
-}
-
-.product-stock.out-of-stock {
-  color: #dc3545;
-}
-
-.out-of-stock-badge {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  background-color: rgba(220, 53, 69, 0.9);
-  color: white;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 0.875rem;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  z-index: 2;
-}
-
-.notify-interest {
-  margin-top: 1rem;
-}
-
-.notify-button {
-  width: 100%;
-  padding: 0.5rem;
-  background-color: #33c7d1;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-}
-
-.notify-button:hover {
-  background-color: #2ba3ac;
-}
-
-.add-to-cart-btn.out-of-stock {
-  background-color: #dc3545;
-}
-
-.add-to-cart-btn.out-of-stock:hover {
-  background-color: #c82333;
+.product-card.out-of-stock .product-image {
+  @apply grayscale;
 }
 </style> 

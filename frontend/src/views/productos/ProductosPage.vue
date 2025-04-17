@@ -157,7 +157,7 @@ const agregarAlCarrito = (producto) => {
                 v-else
                 name="fade" 
                 tag="div" 
-                class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+                class="products-grid"
               >
                 <ProductCard
                   v-for="producto in productoStore.productos"
@@ -241,5 +241,33 @@ const agregarAlCarrito = (producto) => {
 .slide-leave-from {
   transform: translateX(0);
   opacity: 1;
+}
+
+.products-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 8px;
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .products-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    padding: 1rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .products-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 1280px) {
+  .products-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
 }
 </style>

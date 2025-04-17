@@ -2,11 +2,11 @@
   <div class="producto-detalle">
     <!-- Sección principal del producto -->
     <div class="main-section">
-      <div class="container mx-auto px-4 py-8">
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div class="container mx-auto px-2 sm:px-4 py-4 sm:py-8">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-8">
           <!-- Galería de imágenes -->
           <div class="image-gallery">
-            <div class="main-image-container">
+            <div class="main-image-container relative aspect-square">
               <img 
                 :src="imagenActual" 
                 :alt="producto?.nombre"
@@ -16,37 +16,37 @@
               <div v-if="producto?.imagenes_adicionales?.length > 0" class="navigation-buttons">
                 <button 
                   @click="previousImage" 
-                  class="nav-button left"
+                  class="nav-button left bg-white/80 hover:bg-white/90 p-2 rounded-full shadow-lg"
                   :disabled="!hasPreviousImage"
                 >
-                  <i class="fas fa-chevron-left"></i>
+                  <i class="fas fa-chevron-left text-gray-800"></i>
                 </button>
                 <button 
                   @click="nextImage" 
-                  class="nav-button right"
+                  class="nav-button right bg-white/80 hover:bg-white/90 p-2 rounded-full shadow-lg"
                   :disabled="!hasNextImage"
                 >
-                  <i class="fas fa-chevron-right"></i>
+                  <i class="fas fa-chevron-right text-gray-800"></i>
                 </button>
               </div>
             </div>
 
             <!-- Indicadores de imágenes -->
             <div v-if="producto?.imagenes_adicionales?.length > 0" 
-              class="image-indicators mt-4"
+              class="image-indicators mt-2 sm:mt-4"
             >
-              <div class="dots-container">
+              <div class="dots-container flex justify-center gap-2">
                 <button 
-                  class="dot"
-                  :class="{'active': imagenActual === producto.imagen_url}"
+                  class="dot w-2 h-2 rounded-full bg-gray-300 hover:bg-gray-400 transition-colors"
+                  :class="{'active bg-[#33c7d1]': imagenActual === producto.imagen_url}"
                   @click="selectImage(-1)"
                 ></button>
                 <button 
                   v-for="(imagen, index) in producto.imagenes_adicionales"
                   :key="index"
                   @click="selectImage(index)"
-                  class="dot"
-                  :class="{'active': imagenActual === imagen}"
+                  class="dot w-2 h-2 rounded-full bg-gray-300 hover:bg-gray-400 transition-colors"
+                  :class="{'active bg-[#33c7d1]': imagenActual === imagen}"
                 ></button>
               </div>
             </div>
@@ -54,55 +54,55 @@
 
           <!-- Información del producto -->
           <div class="product-info">
-            <div class="mb-6">
-              <h1 class="text-3xl font-bold text-gray-900 mb-2">{{ producto?.nombre }}</h1>
-              <div class="flex items-center gap-4">
-                <span v-if="producto?.codigo_sku" class="text-sm text-gray-600">
+            <div class="mb-4 sm:mb-6">
+              <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">{{ producto?.nombre }}</h1>
+              <div class="flex items-center gap-2 sm:gap-4 flex-wrap">
+                <span v-if="producto?.codigo_sku" class="text-xs sm:text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded">
                   SKU: {{ producto.codigo_sku }}
                 </span>
-                <span v-if="producto?.marca?.nombre" class="text-sm text-gray-600">
+                <span v-if="producto?.marca?.nombre" class="text-xs sm:text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded">
                   Marca: {{ producto.marca.nombre }}
                 </span>
               </div>
             </div>
 
             <!-- Precios y descuentos -->
-            <div class="pricing-section bg-white rounded-lg shadow-sm p-6 mb-6">
-              <div class="flex items-end gap-4 mb-4">
+            <div class="pricing-section bg-white rounded-lg shadow-sm p-4 sm:p-6 mb-4 sm:mb-6">
+              <div class="flex items-end gap-2 sm:gap-4 mb-2 sm:mb-4">
                 <div v-if="tieneDescuento" class="original-price">
-                  <span class="line-through text-gray-400 text-xl">${{ formatPrice(producto?.precio_l1) }}</span>
-                  <span class="discount-badge">-{{ descuentoPorcentaje }}%</span>
+                  <span class="line-through text-gray-400 text-lg sm:text-xl">${{ formatPrice(producto?.precio_l1) }}</span>
+                  <span class="discount-badge bg-red-500 text-white text-xs px-2 py-1 rounded ml-2">-{{ descuentoPorcentaje }}%</span>
                 </div>
                 <div class="current-price">
-                  <span class="text-3xl font-bold text-[#33c7d1]">${{ formatPrice(precioActual) }}</span>
+                  <span class="text-2xl sm:text-3xl font-bold text-[#33c7d1]">${{ formatPrice(precioActual) }}</span>
                 </div>
               </div>
 
               <!-- Precio mayoreo -->
-              <div v-if="producto?.precio_l2" class="mayoreo-price mt-4 pt-4 border-t border-gray-200">
+              <div v-if="producto?.precio_l2" class="mayoreo-price mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-200">
                 <div class="flex items-center justify-between">
-                  <span class="text-gray-600">Precio mayoreo:</span>
-                  <span class="text-xl font-semibold text-gray-800">${{ formatPrice(producto.precio_l2) }}</span>
+                  <span class="text-sm sm:text-base text-gray-600">Precio mayoreo:</span>
+                  <span class="text-lg sm:text-xl font-semibold text-gray-800">${{ formatPrice(producto.precio_l2) }}</span>
                 </div>
-                <p class="text-sm text-gray-500 mt-1">
+                <p class="text-xs sm:text-sm text-gray-500 mt-1">
                   A partir de {{ producto.cantidad_mayoreo || 12 }} unidades
                 </p>
               </div>
             </div>
 
             <!-- Descripción -->
-            <div class="description-section mb-6">
-              <h2 class="text-xl font-semibold mb-3">Descripción</h2>
-              <p class="text-gray-600 leading-relaxed">
+            <div class="description-section mb-4 sm:mb-6">
+              <h2 class="text-lg sm:text-xl font-semibold mb-2 sm:mb-3">Descripción</h2>
+              <p class="text-sm sm:text-base text-gray-600 leading-relaxed">
                 {{ producto?.descripcion || 'Sin descripción disponible' }}
               </p>
             </div>
 
             <!-- Acciones -->
-            <div class="actions-section">
+            <div class="actions-section sticky bottom-0 bg-white p-4 sm:p-0 sm:static">
               <button 
                 @click="openCantidadModal"
-                class="w-full mb-3 bg-[#33c7d1] text-white py-3 px-6 rounded-lg hover:bg-[#2ba3ac] transition-colors flex items-center justify-center gap-2"
+                class="w-full mb-3 bg-[#33c7d1] text-white py-3 px-6 rounded-lg hover:bg-[#2ba3ac] transition-colors flex items-center justify-center gap-2 shadow-lg"
                 :class="{ 'opacity-50 cursor-not-allowed': producto?.agotado }"
                 :disabled="producto?.agotado"
               >
@@ -116,10 +116,10 @@
     </div>
 
     <!-- Sección de productos recomendados -->
-    <div class="recommended-section bg-gray-50 py-12">
-      <div class="container mx-auto px-4">
-        <h2 class="text-2xl font-bold mb-8">Productos recomendados</h2>
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+    <div class="recommended-section bg-gray-50 py-8 sm:py-12">
+      <div class="container mx-auto px-2 sm:px-4">
+        <h2 class="text-xl sm:text-2xl font-bold mb-6 sm:mb-8">Productos recomendados</h2>
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
           <ProductoCard 
             v-for="producto in productosRecomendados" 
             :key="producto.id" 
@@ -131,13 +131,13 @@
     </div>
 
     <!-- Sección de ofertas y promociones -->
-    <div class="promotions-section py-12">
-      <div class="container mx-auto px-4">
-        <div class="flex items-center justify-between mb-8">
-          <h2 class="text-2xl font-bold">Ofertas especiales</h2>
+    <div class="promotions-section py-8 sm:py-12">
+      <div class="container mx-auto px-2 sm:px-4">
+        <div class="flex items-center justify-between mb-6 sm:mb-8">
+          <h2 class="text-xl sm:text-2xl font-bold">Ofertas especiales</h2>
           <router-link 
             to="/ofertas" 
-            class="text-[#33c7d1] hover:text-[#2ba3ac] flex items-center gap-2"
+            class="text-[#33c7d1] hover:text-[#2ba3ac] flex items-center gap-2 text-sm sm:text-base"
           >
             Ver todas
             <i class="fas fa-arrow-right"></i>
@@ -146,7 +146,7 @@
 
         <!-- Carrusel de ofertas -->
         <div class="offers-carousel">
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             <div 
               v-for="oferta in productosEnOferta" 
               :key="oferta.id" 
@@ -156,22 +156,22 @@
                 <img 
                   :src="oferta.imagen_url" 
                   :alt="oferta.nombre"
-                  class="w-full h-48 object-cover"
+                  class="w-full h-40 sm:h-48 object-cover"
                 >
-                <div class="absolute top-0 right-0 bg-red-500 text-white px-3 py-1 rounded-bl-lg">
+                <div class="absolute top-0 right-0 bg-red-500 text-white px-2 sm:px-3 py-1 rounded-bl-lg text-xs sm:text-sm">
                   -{{ oferta.descuento }}%
                 </div>
               </div>
-              <div class="p-4">
-                <h3 class="font-semibold text-lg mb-2">{{ oferta.nombre }}</h3>
+              <div class="p-3 sm:p-4">
+                <h3 class="font-semibold text-base sm:text-lg mb-2">{{ oferta.nombre }}</h3>
                 <div class="flex items-center justify-between">
                   <div>
-                    <span class="line-through text-gray-400">${{ formatPrice(oferta.precio_original) }}</span>
-                    <span class="text-xl font-bold text-red-500 ml-2">${{ formatPrice(oferta.precio_oferta) }}</span>
+                    <span class="line-through text-gray-400 text-sm sm:text-base">${{ formatPrice(oferta.precio_original) }}</span>
+                    <span class="text-lg sm:text-xl font-bold text-red-500 ml-2">${{ formatPrice(oferta.precio_oferta) }}</span>
                   </div>
                   <button 
                     @click="verProducto(oferta)"
-                    class="text-[#33c7d1] hover:text-[#2ba3ac]"
+                    class="text-[#33c7d1] hover:text-[#2ba3ac] text-sm sm:text-base"
                   >
                     Ver más
                   </button>

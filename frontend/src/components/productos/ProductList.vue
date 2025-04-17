@@ -276,9 +276,7 @@ onMounted(() => {
 
 <style scoped>
 .product-list {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 2rem;
+  @apply w-full max-w-7xl mx-auto px-4;
 }
 
 .filters-section {
@@ -392,10 +390,42 @@ onMounted(() => {
 }
 
 .products-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 2rem;
+  @apply grid gap-4;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 639px) {
+  .product-list {
+    @apply px-2;
+  }
+  
+  .products-grid {
+    @apply flex flex-wrap;
+    margin: -0.25rem;
+  }
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .products-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@screen lg {
+  .product-list {
+    @apply px-6;
+  }
+  
+  .products-grid {
+    @apply gap-6;
+  }
+}
+
+.products-grid > * {
+  width: calc(50% - 4px) !important;
+  max-width: calc(50% - 4px) !important;
+  flex: 0 0 calc(50% - 4px) !important;
+  box-sizing: border-box !important;
 }
 
 .no-results {
