@@ -11,6 +11,7 @@ const userRoutes = require('./user.routes');
 const marcaRoutes = require('./marca.routes');
 const consultaRoutes = require('./consulta.routes');
 const recomendacionesRoutes = require('./recomendaciones');
+const chatbotRoutes = require('./chatbot');
 
 // Configurar rutas
 router.use('/auth', authRoutes);
@@ -22,5 +23,6 @@ router.use('/usuarios', userRoutes);
 router.use('/marcas', marcaRoutes);
 router.use('/consultas', consultaRoutes);
 router.use('/recomendaciones', recomendacionesRoutes);
+router.use('/chatbot', chatbotRoutes);
 
 module.exports = router;

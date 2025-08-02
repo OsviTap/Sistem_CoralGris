@@ -184,13 +184,15 @@
     </div>
 
     <!-- Modal de cantidad -->
-    <CantidadModal
-      v-if="showCantidadModal"
-      :is-open="showCantidadModal"
-      :producto="producto"
-      @close="showCantidadModal = false"
-      @confirmar="handleAgregarAlCarrito"
-    />
+    <Teleport to="body">
+      <CantidadModal
+        v-if="showCantidadModal"
+        :is-open="showCantidadModal"
+        :producto="producto"
+        @close="showCantidadModal = false"
+        @confirmar="handleAgregarAlCarrito"
+      />
+    </Teleport>
   </div>
 </template>
 

@@ -18,14 +18,22 @@ const filtros = ref({
 const ordenOptions = [
   { value: '', label: 'Más recientes' },
   { value: 'precio_asc', label: 'Menor precio' },
-  { value: 'precio_desc', label: 'Mayor precio' }
+  { value: 'precio_desc', label: 'Mayor precio' },
+  { value: 'nombre_asc', label: 'A-Z' },
+  { value: 'nombre_desc', label: 'Z-A' }
 ]
 
 // Emitir cambios cuando se modifiquen los filtros
-watch(filtros.value, (newFiltros) => {
-  const filtrosLimpios = Object.fromEntries(
-    Object.entries(newFiltros).filter(([_, value]) => value !== '')
-  )
+watch(filtros, (newFiltros) => {
+  const filtrosLimpios = {}
+  
+  // Incluir todos los filtros, incluso los vacíos, para que el store pueda manejarlos correctamente
+  filtrosLimpios.categoria_id = newFiltros.categoria_id
+  filtrosLimpios.marca_id = newFiltros.marca_id
+  filtrosLimpios.search = newFiltros.search
+  filtrosLimpios.orden = newFiltros.orden
+  
+  console.log('Emitiendo filtros desde componente:', filtrosLimpios)
   emit('aplicar-filtros', filtrosLimpios)
 }, { deep: true })
 
@@ -36,6 +44,8 @@ const resetFiltros = () => {
     orden: '',
     search: ''
   }
+  // Emitir evento para limpiar filtros
+  emit('aplicar-filtros', {})
 }
 </script>
 

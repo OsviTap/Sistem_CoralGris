@@ -265,13 +265,14 @@ export default {
     // Limpiar el estado de zoom al cerrar el modal
     const close = () => {
       isZoomed.value = false
+      showCantidadModal.value = false // Cerrar también el modal de cantidad si está abierto
       document.body.style.overflow = ''
       emit('close')
     }
 
     const closeCantidadModal = () => {
       showCantidadModal.value = false
-      document.body.style.overflow = 'hidden' // Mantener el scroll bloqueado para el modal principal
+      // No cambiar el overflow aquí, mantener el estado del modal principal
     }
 
     const formatPrice = (price) => {
@@ -417,9 +418,9 @@ export default {
     }
 
     const openCantidadModal = () => {
-      if (props.producto.agotado) {
+      if (props.producto?.agotado) {
         registrarInteres()
-      } else {
+      } else if (props.producto?.stock > 0) {
         showCantidadModal.value = true
       }
     }

@@ -22,7 +22,6 @@ export const useProductoStore = defineStore('producto', () => {
     stock: false,
     rating: null,
     busqueda: '',
-    ordenarPor: 'created_at',
     orden: 'DESC'
   })
 
@@ -57,21 +56,24 @@ export const useProductoStore = defineStore('producto', () => {
         limit: paginacion.value.porPagina
       }
 
-      // Agregar filtros solo si tienen valores
-      if (filtros.value.categoria) {
+      // Agregar filtros solo si tienen valores válidos
+      if (filtros.value.categoria && filtros.value.categoria !== null) {
         params.categoria_id = filtros.value.categoria
       }
-      if (filtros.value.marca) {
+      if (filtros.value.marca && filtros.value.marca !== null) {
         params.marca_id = filtros.value.marca
       }
-      if (filtros.value.busqueda) {
-        params.search = filtros.value.busqueda
+      if (filtros.value.busqueda && filtros.value.busqueda.trim() !== '') {
+        params.search = filtros.value.busqueda.trim()
       }
-      if (filtros.value.ordenarPor) {
+      if (filtros.value.orden && filtros.value.orden !== '') {
         params.orden = filtros.value.orden
       }
 
       console.log('Enviando parámetros:', params)
+      console.log('Filtros actuales del store:', filtros.value)
+      console.log('URL de la petición:', '/productos')
+      console.log('Parámetros que se enviarán:', Object.keys(params))
 
       const response = await axios.get('/productos', { params })
 
@@ -86,6 +88,11 @@ export const useProductoStore = defineStore('producto', () => {
       actualizarPrecios()
     } catch (err) {
       console.error('Error al cargar productos:', err)
+      console.error('Detalles del error:', {
+        status: err.response?.status,
+        data: err.response?.data,
+        message: err.message
+      })
       error.value = err.response?.data?.message || 'Error al cargar productos'
       productos.value = [] // Asegurar que productos sea un array vacío en caso de error
     } finally {
@@ -253,9 +260,30 @@ export const useProductoStore = defineStore('producto', () => {
     paginacion.value.paginaActual = pagina
   }
 
-  const setFiltros = (filtros) => {
-    filtros.value = { ...filtros.value, ...filtros }
+  const setFiltros = (nuevosFiltros) => {
+    // Mapear los nombres de filtros del componente al store
+    const filtrosMapeados = {}
+    
+    if (nuevosFiltros.categoria_id !== undefined) {
+      // Si el valor es una cadena vacía, establecer como null para no filtrar
+      filtrosMapeados.categoria = nuevosFiltros.categoria_id === '' ? null : nuevosFiltros.categoria_id
+    }
+    if (nuevosFiltros.marca_id !== undefined) {
+      // Si el valor es una cadena vacía, establecer como null para no filtrar
+      filtrosMapeados.marca = nuevosFiltros.marca_id === '' ? null : nuevosFiltros.marca_id
+    }
+    if (nuevosFiltros.search !== undefined) {
+      filtrosMapeados.busqueda = nuevosFiltros.search || ''
+    }
+    if (nuevosFiltros.orden !== undefined) {
+      filtrosMapeados.orden = nuevosFiltros.orden || 'DESC'
+    }
+    
+    // Actualizar los filtros del store
+    Object.assign(filtros.value, filtrosMapeados)
     paginacion.value.paginaActual = 1
+    
+    console.log('Filtros actualizados en el store:', filtros.value)
   }
 
   const resetearFiltros = () => {
@@ -267,10 +295,15 @@ export const useProductoStore = defineStore('producto', () => {
       stock: false,
       rating: null,
       busqueda: '',
-      ordenarPor: 'created_at',
       orden: 'DESC'
     }
     paginacion.value.paginaActual = 1
+    console.log('Filtros reseteados en el store:', filtros.value)
+  }
+
+  const limpiarFiltros = () => {
+    resetearFiltros()
+    fetchProductos()
   }
 
   const actualizarProducto = async (id, datosProducto) => {
@@ -477,6 +510,7 @@ export const useProductoStore = defineStore('producto', () => {
     setPagina,
     setFiltros,
     resetearFiltros,
+    limpiarFiltros,
     actualizarProducto,
     eliminarProducto,
     createProducto,

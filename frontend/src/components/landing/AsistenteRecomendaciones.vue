@@ -31,22 +31,79 @@
       <div v-if="isOpen" class="asistente-panel">
         <div class="panel-header">
           <h2>Asistente Virtual</h2>
-          <button @click="toggleAsistente" class="close-button">
-            <i class="fas fa-times"></i>
-          </button>
+          <div class="header-actions">
+            <button @click="resetConversation" class="reset-button" title="Reiniciar conversación">
+              <i class="fas fa-redo"></i>
+            </button>
+            <button @click="toggleAsistente" class="close-button">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
         </div>
         
         <div class="panel-content">
-          <div class="chat-messages" ref="chatMessages">
+          <div class="chat-messages" ref="chatMessagesContainer">
+            <!-- Mensaje de bienvenida -->
             <div class="message bot">
               <div class="message-content">
                 <p>¡Hola! Soy tu asistente virtual. ¿En qué puedo ayudarte hoy?</p>
-                <div class="quick-options">
-                  <button @click="handleQuickOption('categorias')">Ver categorías</button>
-                  <button @click="handleQuickOption('ofertas')">Ver ofertas</button>
-                  <button @click="handleQuickOption('contacto')">Contactar soporte</button>
+                <div class="suggestions">
+                  <button 
+                    v-for="suggestion in suggestions" 
+                    :key="suggestion.text"
+                    @click="sendSuggestion(suggestion.text)"
+                    class="suggestion-button"
+                  >
+                    {{ suggestion.text }}
+                  </button>
                 </div>
               </div>
+            </div>
+
+            <!-- Mensajes del chat -->
+            <div 
+              v-for="(msg, index) in messages" 
+              :key="index"
+              class="message"
+              :class="msg.type"
+            >
+              <div class="message-content">
+                <p v-html="formatMessage(msg.text)"></p>
+                <span class="message-time">{{ formatTime(msg.timestamp) }}</span>
+              </div>
+            </div>
+
+            <!-- Indicador de escritura -->
+            <div v-if="isTyping" class="message bot typing">
+              <div class="message-content">
+                <div class="typing-indicator">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Input para mensaje -->
+          <div class="chat-input-container">
+            <div class="input-wrapper">
+              <input 
+                v-model="userMessage"
+                @keyup.enter="sendMessage"
+                @keyup.esc="toggleAsistente"
+                type="text"
+                placeholder="Escribe tu mensaje..."
+                class="chat-input"
+                :disabled="isTyping"
+              />
+              <button 
+                @click="sendMessage"
+                class="send-button"
+                :disabled="!userMessage.trim() || isTyping"
+              >
+                <i class="fas fa-paper-plane"></i>
+              </button>
             </div>
           </div>
         </div>
@@ -56,62 +113,35 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, nextTick, watch } from 'vue'
 import { useRecomendacionesStore } from '@/stores/recomendaciones'
 import { useProductoStore } from '@/stores/producto'
 import { useCarritoStore } from '@/stores/carrito'
+import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
+import axios from '@/utils/axios'
 
 const router = useRouter()
 const isOpen = ref(false)
 const showWelcomeMessage = ref(true)
-const chatMessages = ref(null)
+const messages = ref([])
+const userMessage = ref('')
+const isTyping = ref(false)
+const suggestions = ref([])
+const chatMessagesContainer = ref(null)
 
 const recomendacionesStore = useRecomendacionesStore()
 const productoStore = useProductoStore()
 const carritoStore = useCarritoStore()
+const authStore = useAuthStore()
 
 const categoriasEmergentes = computed(() => recomendacionesStore.categoriasEmergentes || [])
-
-const categoriasPrincipales = [
-  {
-    nombre: 'Regalo',
-    opciones: [
-      '¿Para quién es el regalo?',
-      '¿Cuál es tu presupuesto?',
-      '¿Es para alguna ocasión especial?'
-    ]
-  },
-  {
-    nombre: 'Oficina',
-    opciones: [
-      'Material básico de oficina',
-      'Organización y archivo',
-      'Papelería corporativa'
-    ]
-  },
-  {
-    nombre: 'Escuela',
-    opciones: [
-      'Útiles escolares básicos',
-      'Material de arte',
-      'Mochilas y estuches'
-    ]
-  },
-  {
-    nombre: 'Arte',
-    opciones: [
-      'Materiales de dibujo',
-      'Pintura y lienzos',
-      'Manualidades'
-    ]
-  }
-]
 
 const toggleAsistente = () => {
   isOpen.value = !isOpen.value
   if (isOpen.value) {
     closeWelcomeMessage()
+    loadSuggestions()
   }
 }
 
@@ -119,22 +149,152 @@ const closeWelcomeMessage = () => {
   showWelcomeMessage.value = false
 }
 
-const handleQuickOption = (option) => {
-  switch(option) {
-    case 'categorias':
-      router.push('/categorias')
-      break
-    case 'ofertas':
-      router.push('/ofertas')
-      break
-    case 'contacto':
-      router.push('/contacto')
-      break
+const resetConversation = async () => {
+  try {
+    await axios.post('/chatbot/reset', {
+      userId: authStore.user?.id
+    })
+    
+    messages.value = []
+    userMessage.value = ''
+    
+    // Agregar mensaje de bienvenida
+    messages.value.push({
+      type: 'bot',
+      text: '¡Conversación reiniciada! ¿En qué puedo ayudarte?',
+      timestamp: new Date()
+    })
+    
+    scrollToBottom()
+  } catch (error) {
+    console.error('Error reiniciando conversación:', error)
   }
-  isOpen.value = false
 }
 
+const loadSuggestions = async () => {
+  try {
+    const response = await axios.get('/chatbot/suggestions')
+    suggestions.value = response.data.suggestions
+  } catch (error) {
+    console.error('Error cargando sugerencias:', error)
+    // Sugerencias inteligentes por defecto (solo palabras clave)
+    suggestions.value = [
+      { text: 'Libros', category: 'libros' },
+      { text: 'Material escolar', category: 'escolares' },
+      { text: 'Papelería', category: 'papelería' },
+      { text: 'Arte y manualidades', category: 'arte' },
+      { text: 'Ofertas', category: 'ofertas' },
+      { text: 'Horarios', category: 'horarios' }
+    ]
+  }
+}
+
+const sendSuggestion = (text) => {
+  // Enviar solo la palabra clave, no la frase completa
+  userMessage.value = text
+  sendMessage()
+}
+
+const sendMessage = async () => {
+  if (!userMessage.value.trim() || isTyping.value) return
+
+  const message = userMessage.value.trim()
+  
+  // Agregar mensaje del usuario
+  messages.value.push({
+    type: 'user',
+    text: message,
+    timestamp: new Date()
+  })
+
+  userMessage.value = ''
+  isTyping.value = true
+
+  try {
+    // Enviar mensaje al backend
+    const response = await axios.post('/chatbot/process', {
+      message: message,
+      userId: authStore.user?.id,
+      context: {
+        currentPage: router.currentRoute.value.path,
+        cartItems: carritoStore.items.length
+      }
+    })
+
+    // Verificar que la respuesta sea válida
+    const botResponse = response.data.message || 'Lo siento, no pude procesar tu mensaje. ¿Podrías intentar de nuevo?'
+    
+    // Agregar respuesta del bot
+    messages.value.push({
+      type: 'bot',
+      text: botResponse,
+      timestamp: new Date()
+    })
+
+    // Si la respuesta incluye productos, podríamos procesarlos aquí
+    if (response.data.sentiment === 'negative') {
+      // Opcional: mostrar opción de contacto humano
+      setTimeout(() => {
+        messages.value.push({
+          type: 'bot',
+          text: '¿Te gustaría hablar con un representante humano?',
+          timestamp: new Date()
+        })
+      }, 1000)
+    }
+
+  } catch (error) {
+    console.error('Error enviando mensaje:', error)
+    
+    messages.value.push({
+      type: 'bot',
+      text: 'Lo siento, hubo un error procesando tu mensaje. ¿Podrías intentar de nuevo?',
+      timestamp: new Date()
+    })
+  } finally {
+    isTyping.value = false
+    await nextTick()
+    scrollToBottom()
+  }
+}
+
+const scrollToBottom = () => {
+  if (chatMessagesContainer.value) {
+    chatMessagesContainer.value.scrollTop = chatMessagesContainer.value.scrollHeight
+  }
+}
+
+const formatTime = (timestamp) => {
+  return new Date(timestamp).toLocaleTimeString('es-BO', {
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+const formatMessage = (text) => {
+  // Verificar que text no sea null o undefined
+  if (!text) {
+    return 'Lo siento, no pude procesar tu mensaje. ¿Podrías intentar de nuevo?';
+  }
+  
+  // Convertir enlaces HTML a enlaces clickeables
+  return text.replace(
+    /<a href="([^"]+)"[^>]*>([^<]+)<\/a>/g,
+    '<a href="$1" target="_blank" class="text-blue-600 hover:text-blue-800 underline">$2</a>'
+  )
+}
+
+// Observar cambios en los mensajes para hacer scroll
+watch(messages, () => {
+  nextTick(() => {
+    scrollToBottom()
+  })
+}, { deep: true })
+
 onMounted(() => {
+  // Inicializar mensajes como array vacío
+  messages.value = []
+  
   // Mostrar el mensaje de bienvenida cada vez que se carga la página
   showWelcomeMessage.value = true
 })
@@ -249,8 +409,8 @@ onMounted(() => {
   position: fixed;
   bottom: 5rem;
   right: 2rem;
-  width: 350px;
-  height: 500px;
+  width: 400px;
+  height: 600px;
   background: white;
   border-radius: 16px;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
@@ -274,7 +434,12 @@ onMounted(() => {
   font-weight: 600;
 }
 
-.close-button {
+.header-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.reset-button, .close-button {
   background: none;
   border: none;
   color: white;
@@ -284,18 +449,22 @@ onMounted(() => {
   transition: all 0.3s ease;
 }
 
-.close-button:hover {
+.reset-button:hover, .close-button:hover {
   background: rgba(255, 255, 255, 0.2);
   transform: rotate(90deg);
 }
 
 .panel-content {
   flex: 1;
-  padding: 1rem;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .chat-messages {
+  flex: 1;
+  padding: 1rem;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -305,6 +474,10 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   max-width: 80%;
+}
+
+.message.user {
+  align-self: flex-end;
 }
 
 .message.bot {
@@ -318,18 +491,38 @@ onMounted(() => {
   position: relative;
 }
 
+.message.user .message-content {
+  background: #33c7d1;
+  color: white;
+}
+
 .message-content p {
-  margin: 0 0 1rem 0;
+  margin: 0 0 0.5rem 0;
   color: #2c3e50;
 }
 
-.quick-options {
+.message.user .message-content p {
+  color: white;
+}
+
+.message-time {
+  font-size: 0.75rem;
+  color: #999;
+  display: block;
+}
+
+.message.user .message-time {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.suggestions {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  margin-top: 1rem;
 }
 
-.quick-options button {
+.suggestion-button {
   background: white;
   border: 2px solid #33c7d1;
   color: #33c7d1;
@@ -338,12 +531,100 @@ onMounted(() => {
   cursor: pointer;
   transition: all 0.3s ease;
   font-weight: 500;
+  font-size: 0.9rem;
 }
 
-.quick-options button:hover {
+.suggestion-button:hover {
   background: #33c7d1;
   color: white;
   transform: translateY(-2px);
+}
+
+.chat-input-container {
+  padding: 1rem;
+  border-top: 1px solid #eee;
+  background: white;
+}
+
+.input-wrapper {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.chat-input {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border: 2px solid #eee;
+  border-radius: 25px;
+  outline: none;
+  transition: all 0.3s ease;
+  font-size: 0.9rem;
+}
+
+.chat-input:focus {
+  border-color: #33c7d1;
+}
+
+.chat-input:disabled {
+  background: #f8f9fa;
+  cursor: not-allowed;
+}
+
+.send-button {
+  background: #33c7d1;
+  color: white;
+  border: none;
+  padding: 0.75rem;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.send-button:hover:not(:disabled) {
+  background: #2ba3ac;
+  transform: scale(1.1);
+}
+
+.send-button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.typing-indicator {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.typing-indicator span {
+  width: 8px;
+  height: 8px;
+  background: #33c7d1;
+  border-radius: 50%;
+  animation: typing 1.4s infinite ease-in-out;
+}
+
+.typing-indicator span:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.typing-indicator span:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+@keyframes typing {
+  0%, 80%, 100% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 @keyframes slideIn {

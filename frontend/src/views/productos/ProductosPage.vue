@@ -50,9 +50,8 @@ const toggleFilters = () => {
 }
 
 const applyFiltersAndClose = (filters) => {
-  productoStore.filtros = { ...productoStore.filtros, ...filters }
-  productoStore.paginacion.paginaActual = 1
-  cargarProductos()
+  productoStore.setFiltros(filters)
+  // No llamar a cargarProductos aquí porque el watcher ya lo hará
   toggleFilters()
 }
 
@@ -60,7 +59,6 @@ const applyFiltersAndClose = (filters) => {
 watch(
   () => productoStore.filtros,
   () => {
-    productoStore.paginacion.paginaActual = 1
     cargarProductos()
   },
   { deep: true }
@@ -105,7 +103,7 @@ const agregarAlCarrito = (producto) => {
           <div class="flex flex-col md:flex-row gap-6">
             <!-- Filtros para desktop -->
             <aside class="hidden md:block w-64 bg-white rounded-lg shadow-lg p-6">
-              <Filtros @aplicar-filtros="productoStore.setFiltros" />
+              <Filtros @aplicar-filtros="applyFiltersAndClose" />
             </aside>
 
             <!-- Grid de productos -->

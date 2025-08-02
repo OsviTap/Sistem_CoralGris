@@ -59,12 +59,18 @@ const productoController = {
       } = req.query;
 
       console.log('Parámetros recibidos:', { page, limit, categoria_id, marca_id, search, orden }); // Debug log
+      console.log('Query completo:', req.query); // Debug log
+      console.log('Tipos de datos:', { 
+        categoria_id: typeof categoria_id, 
+        marca_id: typeof marca_id, 
+        search: typeof search 
+      }); // Debug log
 
       const offset = (page - 1) * limit;
       const where = {};
 
-      if (categoria_id) where.categoria_id = categoria_id;
-      if (marca_id) where.marca_id = marca_id;
+      if (categoria_id && categoria_id !== 'null' && categoria_id !== '') where.categoria_id = categoria_id;
+      if (marca_id && marca_id !== 'null' && marca_id !== '') where.marca_id = marca_id;
       if (search) {
         where[Op.or] = [
           { nombre: { [Op.iLike]: `%${search}%` } },
@@ -75,8 +81,11 @@ const productoController = {
       let order = [['created_at', 'DESC']];
       if (orden === 'precio_asc') order = [['precio_l1', 'ASC']];
       if (orden === 'precio_desc') order = [['precio_l1', 'DESC']];
+      if (orden === 'nombre_asc') order = [['nombre', 'ASC']];
+      if (orden === 'nombre_desc') order = [['nombre', 'DESC']];
 
       console.log('Consulta a realizar:', { where, order, limit, offset }); // Debug log
+      console.log('WHERE clause:', JSON.stringify(where, null, 2)); // Debug log
 
       const { count, rows } = await Producto.findAndCountAll({
         where,
@@ -96,6 +105,8 @@ const productoController = {
         limit: parseInt(limit),
         offset: parseInt(offset)
       });
+
+      console.log('Resultado de la consulta:', { count, rowsCount: rows.length }); // Debug log
 
       // Transformar los datos para incluir todos los precios
       const productos = rows.map(producto => ({

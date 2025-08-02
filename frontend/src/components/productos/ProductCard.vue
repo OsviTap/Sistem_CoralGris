@@ -364,7 +364,7 @@ const handleImageError = (e) => {
 }
 
 const openCantidadModal = () => {
-  if (!props.producto.agotado) {
+  if (!props.producto?.agotado && props.producto?.stock > 0) {
     showCantidadModal.value = true
   }
 }
@@ -466,12 +466,14 @@ const closeQuickView = () => {
       />
     </Teleport>
 
-    <CantidadModal 
-      :is-open="showCantidadModal"
-      :producto="producto"
-      @close="closeCantidadModal"
-      @confirmar="handleAgregarAlCarrito"
-    />
+    <Teleport to="body">
+      <CantidadModal 
+        :is-open="showCantidadModal"
+        :producto="producto"
+        @close="closeCantidadModal"
+        @confirmar="handleAgregarAlCarrito"
+      />
+    </Teleport>
   </div>
 </template>
 

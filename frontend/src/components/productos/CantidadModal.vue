@@ -1,9 +1,9 @@
 <template>
   <div>
     <Transition name="fade">
-      <div v-if="isOpen" class="cantidad-modal-overlay" @click.self="$emit('close')">
+      <div v-if="isOpen" class="cantidad-modal-overlay" @click="handleOverlayClick">
         <div class="cantidad-modal-content">
-          <button class="close-button" @click="$emit('close')">&times;</button>
+          <button class="close-button" @click="handleClose">&times;</button>
           
           <div class="modal-header">
             <h2>Seleccionar cantidad</h2>
@@ -22,11 +22,11 @@
             <div class="price-section">
               <div class="current-price">
                 <span class="price-label">Precio unitario:</span>
-                <span class="price">${{ formatPrice(precioUnitario) }}</span>
+                <span class="price">Bs. {{ formatPrice(precioUnitario) }}</span>
               </div>
               <div class="total-price">
                 <span class="price-label">Total:</span>
-                <span class="price">${{ formatPrice(precioFinal) }}</span>
+                <span class="price">Bs. {{ formatPrice(precioFinal) }}</span>
               </div>
             </div>
 
@@ -38,15 +38,15 @@
               <div class="mayoreo-details">
                 <div class="mayoreo-price">
                   <span class="price-label">Precio mayoreo:</span>
-                  <span class="price">${{ formatPrice(producto.precios?.l2 || producto.precio_l2) }}</span>
+                  <span class="price">Bs. {{ formatPrice(producto.precios?.l2 || producto.precio_l2) }}</span>
                 </div>
                 <div class="mayoreo-savings" v-if="cantidad >= cantidadMayoreo">
                   <span class="savings-label">Ahorro por unidad:</span>
-                  <span class="savings-amount">${{ formatPrice(ahorroPorUnidad) }}</span>
+                  <span class="savings-amount">Bs. {{ formatPrice(ahorroPorUnidad) }}</span>
                 </div>
                 <div class="mayoreo-total" v-if="cantidad >= cantidadMayoreo">
                   <span class="price-label">Total con mayoreo:</span>
-                  <span class="price">${{ formatPrice(precioFinalMayoreo) }}</span>
+                  <span class="price">Bs. {{ formatPrice(precioFinalMayoreo) }}</span>
                 </div>
               </div>
             </div>
@@ -79,7 +79,7 @@
           </div>
 
           <div class="modal-actions">
-            <button class="cancel-button" @click="$emit('close')">
+            <button class="cancel-button" @click="handleClose">
               <i class="fas fa-times"></i>
               Cancelar
             </button>
@@ -95,7 +95,7 @@
 </template>
 
 <script>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 
 export default {
   name: 'CantidadModal',
@@ -165,6 +165,37 @@ export default {
       emit('confirmar', cantidad.value, precioFinal)
     }
 
+    const handleOverlayClick = (event) => {
+      if (event.target === event.currentTarget) {
+        emit('close')
+      }
+    }
+
+    const resetModal = () => {
+      cantidad.value = 1
+    }
+
+    // Limpiar estado cuando se cierra el modal
+    const handleClose = () => {
+      resetModal()
+      emit('close')
+    }
+
+    const handleKeydown = (event) => {
+      if (event.key === 'Escape') {
+        emit('close')
+      }
+    }
+
+    onMounted(() => {
+      document.addEventListener('keydown', handleKeydown)
+      resetModal()
+    })
+
+    onUnmounted(() => {
+      document.removeEventListener('keydown', handleKeydown)
+    })
+
     return {
       cantidad,
       precioUnitario,
@@ -177,6 +208,8 @@ export default {
       decrementarCantidad,
       validarCantidad,
       confirmarCantidad,
+      handleOverlayClick,
+      handleClose,
       formatPrice: (price) => Number(price).toFixed(2)
     }
   }
@@ -194,7 +227,7 @@ export default {
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 10000;
+  z-index: 10001; /* Aumentado para estar por encima de QuickViewModal */
   backdrop-filter: blur(8px);
 }
 

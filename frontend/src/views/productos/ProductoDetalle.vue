@@ -169,9 +169,22 @@ const handleAgregarAlCarrito = (cantidad, precioFinal) => {
 }
 
 const openCantidadModal = () => {
-  if (producto.value.agotado) {
-    registrarInteres()
-  } else {
+  if (producto.value?.agotado) {
+    Swal.fire({
+      title: 'Producto agotado',
+      text: '¿Deseas que te notifiquemos cuando esté disponible?',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#33c7d1',
+      cancelButtonColor: '#6c757d',
+      confirmButtonText: 'Sí, notificarme',
+      cancelButtonText: 'No, gracias'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        registrarInteres()
+      }
+    })
+  } else if (producto.value?.stock > 0) {
     showCantidadModal.value = true
   }
 }
@@ -543,12 +556,15 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- Modal de cantidad -->
-    <CantidadModal
-      v-if="showCantidadModal"
-      :producto="producto"
-      @close="showCantidadModal = false"
-      @confirmar="handleAgregarAlCarrito"
-    />
+    <Teleport to="body">
+      <CantidadModal
+        v-if="showCantidadModal"
+        :is-open="showCantidadModal"
+        :producto="producto"
+        @close="showCantidadModal = false"
+        @confirmar="handleAgregarAlCarrito"
+      />
+    </Teleport>
   </div>
 </template>
 
