@@ -349,17 +349,37 @@ const formatPrice = (price) => {
 // Cargar datos
 onMounted(async () => {
   try {
+    console.log('🔍 Cargando datos del producto:', route.params.id)
+    
     // Cargar producto principal
     producto.value = await productoStore.fetchProducto(route.params.id)
     imagenActual.value = producto.value.imagen_url
 
-    // Cargar productos recomendados
-    productosRecomendados.value = await productoStore.fetchProductosRecomendados(route.params.id)
+    // ✅ Cargar productos recomendados y ofertas en paralelo
+    const [recomendados, ofertas] = await Promise.allSettled([
+      productoStore.fetchProductosRecomendados(route.params.id),
+      productoStore.fetchProductosEnOferta()
+    ])
 
-    // Cargar productos en oferta
-    productosEnOferta.value = await productoStore.fetchProductosEnOferta()
+    // Manejar productos recomendados
+    if (recomendados.status === 'fulfilled') {
+      productosRecomendados.value = recomendados.value
+    } else {
+      console.warn('⚠️ Error al cargar productos recomendados:', recomendados.reason)
+      productosRecomendados.value = []
+    }
+
+    // Manejar productos en oferta
+    if (ofertas.status === 'fulfilled') {
+      productosEnOferta.value = ofertas.value
+    } else {
+      console.warn('⚠️ Error al cargar productos en oferta:', ofertas.reason)
+      productosEnOferta.value = []
+    }
+
+    console.log('✅ Datos cargados exitosamente')
   } catch (error) {
-    console.error('Error al cargar los datos:', error)
+    console.error('❌ Error al cargar los datos:', error)
     Swal.fire({
       title: 'Error',
       text: 'No se pudo cargar la información del producto',

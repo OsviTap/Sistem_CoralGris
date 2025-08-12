@@ -42,8 +42,8 @@ const promocion = ref({
 })
 
 const buscarProductos = async (query) => {
-  // Implementar búsqueda de productos
-  return productoStore.searchProductos(query)
+  // ✅ Usar el nombre correcto de la función del store
+  return productoStore.buscarProductos(query)
 }
 
 const handleProductoSelect = (producto) => {
@@ -140,6 +140,7 @@ const guardarPromocion = async () => {
         <BaseSearchSelect
           label="Buscar y seleccionar productos"
           :search-function="buscarProductos"
+          placeholder="Buscar por nombre o código SKU..."
           @select="handleProductoSelect"
         />
 

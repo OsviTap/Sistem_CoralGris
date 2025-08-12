@@ -25,6 +25,7 @@
     "mapbox-gl": "^3.9.4",
     "pinia": "^2.3.0",
     "preline": "^2.7.0",
+    "quagga": "^0.12.1",
     "sweetalert2": "^11.15.10",
     "swiper": "^11.2.1",
     "vee-validate": "^4.15.0",

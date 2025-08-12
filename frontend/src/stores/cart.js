@@ -101,6 +101,12 @@ export const useCartStore = defineStore('cart', {
 
     // Actualizar precios según nivel de usuario
     updatePrices(nivelPrecio) {
+      // ✅ Verificar que nivelPrecio no sea null o undefined
+      if (!nivelPrecio) {
+        console.log('⚠️ Nivel de precio no definido, usando precio por defecto');
+        return;
+      }
+      
       this.items.forEach(item => {
         const nivel = nivelPrecio.toLowerCase()
         // Obtener el precio según el nivel del usuario

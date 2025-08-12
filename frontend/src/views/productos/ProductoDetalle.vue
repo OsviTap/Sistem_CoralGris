@@ -150,7 +150,8 @@ const handleAgregarAlCarrito = (cantidad, precioFinal) => {
     precio: precioFinal
   })
 
-  showCantidadModal.value = false
+  // El modal se cierra automáticamente desde CantidadModal
+  // showCantidadModal.value = false
 
   Swal.fire({
     icon: 'success',
@@ -433,7 +434,7 @@ onBeforeUnmount(() => {
               <span class="precio-label">
                 Precio Mayoreo:
                 <i class="fas fa-info-circle" 
-                   v-tooltip="'Precio disponible a partir de ' + (producto.cantidad_mayoreo || 12) + ' unidades'">
+                   :title="'Precio disponible a partir de ' + (producto.cantidad_mayoreo || 12) + ' unidades'">
                 </i>
               </span>
               <span class="precio-valor">${{ formatPrice(precioMayoreo) }}</span>

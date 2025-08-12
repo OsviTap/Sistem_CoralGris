@@ -161,14 +161,19 @@ export const useProductoStore = defineStore('producto', () => {
   const fetchProducto = async (id) => {
     try {
       const response = await axios.get(`/productos/${id}`)
-      if (!response.data || !response.data.producto) {
+      console.log('✅ Respuesta del backend:', response.data)
+      
+      // ✅ Manejar tanto la respuesta nueva como la antigua
+      const producto = response.data.producto || response.data
+      
+      if (!producto) {
         throw new Error('Producto no encontrado')
       }
-      const producto = response.data.producto
+      
       productoSeleccionado.value = transformarProducto(producto)
       return productoSeleccionado.value
     } catch (error) {
-      console.error('Error al obtener producto:', error)
+      console.error('❌ Error al obtener producto:', error)
       throw error
     }
   }
@@ -220,16 +225,23 @@ export const useProductoStore = defineStore('producto', () => {
   }
 
   const buscarProductos = async (query) => {
-    loading.value = true
-    error.value = null
     try {
-      const response = await axios.get(`/productos/buscar?q=${encodeURIComponent(query)}`)
-      productos.value = response.data
+      console.log('🔍 Buscando productos con query:', query);
+      
+      const response = await axios.get('/productos', {
+        params: {
+          search: query,
+          limit: 10 // Limitar resultados para el buscador
+        }
+      });
+      
+      console.log('✅ Productos encontrados:', response.data.productos?.length || 0);
+      
+      // Retornar solo los productos encontrados, no sobrescribir productos.value
+      return response.data.productos || [];
     } catch (error) {
-      error.value = error.response?.data?.message || 'Error al buscar productos'
-      console.error('Error al buscar productos:', error)
-    } finally {
-      loading.value = false
+      console.error('❌ Error al buscar productos:', error);
+      return [];
     }
   }
 
@@ -456,21 +468,27 @@ export const useProductoStore = defineStore('producto', () => {
 
   const fetchProductosRecomendados = async (productoId) => {
     try {
+      console.log('🔍 Obteniendo productos recomendados para:', productoId)
       const response = await axios.get(`/productos/${productoId}/recomendados`)
-      return response.data
+      console.log('✅ Productos recomendados obtenidos:', response.data?.length || 0)
+      return response.data || []
     } catch (error) {
-      console.error('Error al obtener productos recomendados:', error)
-      throw error
+      console.error('❌ Error al obtener productos recomendados:', error)
+      // ✅ Retornar array vacío en lugar de lanzar error
+      return []
     }
   }
 
   const fetchProductosEnOferta = async () => {
     try {
+      console.log('🔍 Obteniendo productos en oferta...')
       const response = await axios.get('/productos/ofertas')
-      return response.data
+      console.log('✅ Productos en oferta obtenidos:', response.data?.length || 0)
+      return response.data || []
     } catch (error) {
-      console.error('Error al obtener productos en oferta:', error)
-      throw error
+      console.error('❌ Error al obtener productos en oferta:', error)
+      // ✅ Retornar array vacío en lugar de lanzar error
+      return []
     }
   }
 

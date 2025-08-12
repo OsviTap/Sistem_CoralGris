@@ -74,7 +74,8 @@ const productoController = {
       if (search) {
         where[Op.or] = [
           { nombre: { [Op.iLike]: `%${search}%` } },
-          { descripcion: { [Op.iLike]: `%${search}%` } }
+          { descripcion: { [Op.iLike]: `%${search}%` } },
+          { codigo_sku: { [Op.iLike]: `%${search}%` } }
         ];
       }
 
@@ -398,50 +399,28 @@ const productoController = {
   // Obtener productos recomendados
   getProductosRecomendados: async (req, res) => {
     try {
-      const { 
-        categoria_id, 
-        exclude_id, 
-        limit = 8 
-      } = req.query;
-
-      const where = {
-        estado: 'activo'
-      };
-
-      if (categoria_id) {
-        where.categoria_id = categoria_id;
-      }
-
-      if (exclude_id) {
-        where.id = {
-          [Op.ne]: exclude_id
-        };
-      }
-
-      const productos = await Producto.findAll({
-        where,
+      const productosRecomendados = await Producto.findAll({
+        where: {
+          activo: true,
+          stock: { [Op.gt]: 0 }
+        },
         include: [
-          {
-            model: Categoria,
-            as: 'categoria',
-            attributes: ['nombre']
-          },
-          {
-            model: Marca,
-            as: 'marca',
-            attributes: ['nombre']
-          }
+          { model: Categoria, as: 'categoria' },
+          { model: Marca, as: 'marca' }
         ],
-        limit: parseInt(limit),
-        order: Sequelize.literal('RANDOM()') // Cambiado a literal para PostgreSQL
+        order: [
+          ['rating', 'DESC'],
+          ['created_at', 'DESC']
+        ],
+        limit: 8
       });
 
-      res.json(productos);
+      res.json(productosRecomendados);
     } catch (error) {
       console.error('Error al obtener productos recomendados:', error);
       res.status(500).json({ 
         message: 'Error al obtener productos recomendados',
-        error: error.message 
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   },

@@ -159,15 +159,17 @@ export default {
     }
 
     const confirmarCantidad = () => {
-      const precioFinal = cantidad.value >= cantidadMayoreo.value
+      const precioCalculado = cantidad.value >= cantidadMayoreo.value
         ? precioFinalMayoreo.value
         : precioFinal.value
-      emit('confirmar', cantidad.value, precioFinal)
+      emit('confirmar', cantidad.value, precioCalculado)
+      // Cerrar el modal automáticamente después de confirmar
+      handleClose()
     }
 
     const handleOverlayClick = (event) => {
       if (event.target === event.currentTarget) {
-        emit('close')
+        handleClose()
       }
     }
 
@@ -183,7 +185,7 @@ export default {
 
     const handleKeydown = (event) => {
       if (event.key === 'Escape') {
-        emit('close')
+        handleClose()
       }
     }
 

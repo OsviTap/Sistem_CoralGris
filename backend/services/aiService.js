@@ -3,6 +3,7 @@ const natural = require('natural');
 const nlp = require('node-nlp');
 const { Producto, Categoria, Marca } = require('../models');
 const { Op } = require('sequelize');
+const productFormatter = require('./formatters/productFormatter');
 
 class AIService {
   constructor() {
@@ -95,24 +96,27 @@ class AIService {
 
   // Agregar sinónimos automáticamente basado en el nombre de la categoría
   addAutomaticSynonyms(categoryName) {
+    // DESACTIVAR SINÓNIMOS AUTOMÁTICOS PARA EVITAR DUPLICADOS
+    // Los sinónimos están causando problemas con las sugerencias duplicadas
+    return;
+    
+    // Código original comentado:
+    /*
     const synonyms = {
       'libros': ['librería', 'lectura', 'texto'],
-      'escolares': ['papelería', 'útiles', 'material escolar'],
-      'oficina': ['trabajo', 'escritorio', 'papelería'],
-      'arte': ['manualidades', 'creatividad', 'dibujo'],
-      'regalos': ['souvenirs', 'recuerdos', 'obsequios']
+      'escolares': ['papelería', 'útiles', 'material escolar']
     };
 
-    // Buscar sinónimos automáticos
-    for (const [key, values] of Object.entries(synonyms)) {
-      if (categoryName.includes(key) || key.includes(categoryName)) {
-        values.forEach(synonym => {
-          if (!this.categoriesCache.has(synonym)) {
-            this.categoriesCache.set(synonym, categoryName);
-          }
-        });
-      }
+    // Solo agregar sinónimos si la categoría existe en la base de datos
+    if (synonyms[categoryName]) {
+      synonyms[categoryName].forEach(synonym => {
+        // Solo agregar si no existe ya en el cache
+        if (!this.categoriesCache.has(synonym)) {
+          this.categoriesCache.set(synonym, categoryName);
+        }
+      });
     }
+    */
   }
 
   // Entrenar clasificador de intenciones
@@ -215,7 +219,7 @@ class AIService {
 
       // 5. Si la confianza es baja, usar respuestas inteligentes
       if (confidence < 0.7) {
-        return this.getSmartFallbackResponse(message);
+        return await this.getSmartFallbackResponse(message);
       }
 
       // 6. Procesar según la intención
@@ -239,7 +243,7 @@ class AIService {
           return intentResult.answer;
         
         default:
-          return this.getSmartFallbackResponse(message);
+          return await this.getSmartFallbackResponse(message);
       }
 
     } catch (error) {
@@ -336,23 +340,8 @@ class AIService {
         return this.handleMultipleProducts(productos, message);
       }
 
-      // Generar respuesta con productos
-      let response = 'Encontré estos productos que podrían interesarte:\n\n';
-      
-      productos.slice(0, 5).forEach(producto => {
-        response += `• ${producto.nombre} - Bs. ${producto.precio_l1}\n`;
-        response += `  🔗 <a href="/productos/${producto.id}" class="text-blue-600 hover:underline">Ver detalles</a>\n\n`;
-      });
-
-      // Agregar enlace a la categoría completa
-      if (categories.length > 0) {
-        const categoriaId = await this.getCategoryIds(categories);
-        if (categoriaId.length > 0) {
-          response += `📚 <a href="/productos?categoria=${categoriaId[0]}" class="text-green-600 hover:underline font-semibold">Ver todos los productos de esta categoría</a>\n\n`;
-        }
-      }
-
-      response += '¿Te gustaría ver más detalles de algún producto?';
+      // Usar el nuevo formato ordenado
+      return this.formatProductResponse(productos, 'Encontré estos productos que podrían interesarte:\n\n');
       
       console.log('=== FIN handleProductSearch ===');
       return response;
@@ -373,13 +362,7 @@ class AIService {
         return '¿Podrías especificar qué producto te interesa para darte el precio exacto?';
       }
 
-      let response = 'Aquí tienes los precios:\n\n';
-      
-      for (const producto of productos) {
-        response += `• ${producto.nombre}: Bs. ${producto.precio_l1}\n`;
-      }
-
-      return response;
+      return productFormatter.formatPriceResponse(productos);
 
     } catch (error) {
       console.error('Error consultando precios:', error);
@@ -407,11 +390,7 @@ class AIService {
         return 'Actualmente no tenemos productos destacados, pero puedes revisar nuestros productos regulares.';
       }
 
-      let response = '¡Aquí tienes nuestros productos destacados!\n\n';
-      
-      ofertas.forEach(producto => {
-        response += `• ${producto.nombre} - Bs. ${producto.precio_l1}\n`;
-      });
+      return productFormatter.formatOffersResponse(ofertas);
 
       return response;
 
@@ -594,71 +573,9 @@ class AIService {
     }
   }
 
-  // Formatear productos agrupados
+  // Formatear productos agrupados (usando el nuevo formateador)
   formatGroupedProducts(productos, query) {
-    // Agrupar productos por categoría
-    const groupedByCategory = {};
-    const groupedByBrand = {};
-    
-    productos.forEach(producto => {
-      const categoria = producto.categoria?.nombre || 'Sin categoría';
-      const marca = producto.marca?.nombre || 'Sin marca';
-      
-      if (!groupedByCategory[categoria]) {
-        groupedByCategory[categoria] = [];
-      }
-      if (!groupedByBrand[marca]) {
-        groupedByBrand[marca] = [];
-      }
-      
-      groupedByCategory[categoria].push(producto);
-      groupedByBrand[marca].push(producto);
-    });
-
-    let response = `Encontré ${productos.length} productos relacionados con "${query}". Te los muestro organizados:\n\n`;
-
-    // Mostrar por categorías
-    response += '📚 **Por Categorías:**\n';
-    Object.entries(groupedByCategory).forEach(([categoria, productos]) => {
-      response += `\n**${categoria}** (${productos.length} productos):\n`;
-      productos.slice(0, 3).forEach(producto => {
-        response += `• ${producto.nombre} - Bs. ${producto.precio_l1}\n`;
-        response += `  🔗 <a href="/productos/${producto.id}" class="text-blue-600 hover:underline">Ver detalles</a>\n`;
-      });
-      if (productos.length > 3) {
-        response += `  ... y ${productos.length - 3} más\n`;
-      }
-    });
-
-    // Mostrar por marcas
-    response += '\n🏷️ **Por Marcas:**\n';
-    Object.entries(groupedByBrand).forEach(([marca, productos]) => {
-      if (productos.length > 1) {
-        response += `\n**${marca}** (${productos.length} productos):\n`;
-        productos.slice(0, 2).forEach(producto => {
-          response += `• ${producto.nombre} - Bs. ${producto.precio_l1}\n`;
-        });
-        if (productos.length > 2) {
-          response += `  ... y ${productos.length - 2} más\n`;
-        }
-      }
-    });
-
-    // Agregar enlaces de navegación
-    response += '\n🔍 **Opciones de navegación:**\n';
-    Object.keys(groupedByCategory).forEach(categoria => {
-      const categoriaId = productos.find(p => p.categoria?.nombre === categoria)?.categoria?.id;
-      if (categoriaId) {
-        response += `• <a href="/productos?categoria=${categoriaId}" class="text-green-600 hover:underline">Ver todos los productos de ${categoria}</a>\n`;
-      }
-    });
-
-    response += '\n💡 **Sugerencias:**\n';
-    response += '• Puedes ser más específico: "libros de matemáticas"\n';
-    response += '• Filtrar por marca: "productos de Faber"\n';
-    response += '• Ver por precio: "productos económicos"\n';
-
-    return response;
+    return productFormatter.formatGroupedProducts(productos, query);
   }
 
   // Búsqueda inteligente con filtros
@@ -781,19 +698,7 @@ class AIService {
         if (productos.length > 5) {
           return this.handleMultipleProducts(productos, cleanMessage);
         } else {
-          let response = 'Encontré estos productos que coinciden con tu consulta:\n\n';
-          
-          productos.forEach(producto => {
-            response += `• ${producto.nombre} - Bs. ${producto.precio_l1}\n`;
-            if (producto.descripcion) {
-              response += `  Descripción: ${producto.descripcion}\n`;
-            }
-            response += `  🔗 <a href="/productos/${producto.id}" class="text-blue-600 hover:underline">Ver detalles</a>\n`;
-            response += '\n';
-          });
-
-          response += '¿Te gustaría ver más detalles o buscar algo más específico?';
-          return response;
+          return this.formatProductResponse(productos, 'Encontré estos productos que coinciden con tu consulta:\n\n');
         }
       }
 
@@ -923,54 +828,70 @@ class AIService {
     return cleanMessage.trim();
   }
 
-  // Formatear respuesta de productos
+  // Formatear respuesta de productos (usando el nuevo formateador)
   formatProductResponse(productos, header) {
-    let response = header;
-    
-    productos.slice(0, 5).forEach(producto => {
-      response += `• ${producto.nombre} - Bs. ${producto.precio_l1}\n`;
-      if (producto.descripcion) {
-        response += `  Descripción: ${producto.descripcion}\n`;
-      }
-      response += `  🔗 <a href="/productos/${producto.id}" class="text-blue-600 hover:underline">Ver detalles</a>\n\n`;
-    });
-
-    response += '¿Te gustaría ver más detalles o buscar algo más específico?';
-    return response;
+    return productFormatter.formatProductResponse(productos, header);
   }
 
   // Generar sugerencias inteligentes basadas en categorías disponibles
-  generateSmartSuggestions() {
+  async generateSmartSuggestions() {
     const suggestions = [];
     
-    // Obtener categorías del cache
-    const categoriasDisponibles = Array.from(this.categoriesCache.values());
-    
-    // Mapear categorías a sugerencias amigables
-    const categoryMappings = {
-      'libros': 'Libros',
-      'escolares': 'Material escolar',
-      'oficina': 'Papelería de oficina',
-      'arte': 'Arte y manualidades',
-      'regalos': 'Regalos y souvenirs'
-    };
-    
-    // Agregar sugerencias basadas en categorías disponibles
-    categoriasDisponibles.forEach(categoria => {
-      const suggestionText = categoryMappings[categoria] || categoria.charAt(0).toUpperCase() + categoria.slice(1);
-      suggestions.push({
-        text: suggestionText,
-        category: categoria
+    try {
+      // Obtener categorías directamente de la base de datos
+      const categorias = await Categoria.findAll({
+        attributes: ['id', 'nombre']
       });
-    });
-    
-    // Agregar sugerencias generales
-    suggestions.push(
-      { text: 'Ofertas', category: 'ofertas' },
-      { text: 'Horarios', category: 'horarios' },
-      { text: 'Ubicación', category: 'ubicacion' },
-      { text: 'Contacto', category: 'contacto' }
-    );
+      
+      console.log('Categorías encontradas para sugerencias:', categorias.map(c => c.nombre));
+      
+      // Mapear categorías a sugerencias amigables (dinámico)
+      const categoryMappings = {
+        'libros': 'Libros',
+        'escolares': 'Material escolar',
+        'oficina': 'Papelería de oficina',
+        'arte': 'Arte y manualidades',
+        'regalos': 'Regalos y souvenirs',
+        'tecnologia': 'Tecnología',
+        'deportes': 'Deportes',
+        'hogar': 'Hogar y jardín'
+      };
+      
+      // Agregar sugerencias basadas en categorías de la base de datos
+      categorias.forEach(categoria => {
+        const nombreLower = categoria.nombre.toLowerCase();
+        const suggestionText = categoryMappings[nombreLower] || 
+                             categoria.nombre.charAt(0).toUpperCase() + categoria.nombre.slice(1);
+        
+        suggestions.push({
+          text: suggestionText,
+          category: nombreLower
+        });
+      });
+      
+      // Agregar sugerencias generales
+      suggestions.push(
+        { text: 'Ofertas', category: 'ofertas' },
+        { text: 'Horarios', category: 'horarios' },
+        { text: 'Ubicación', category: 'ubicacion' },
+        { text: 'Contacto', category: 'contacto' }
+      );
+      
+      console.log('Sugerencias generadas:', suggestions.map(s => s.text));
+      
+    } catch (error) {
+      console.error('Error generando sugerencias:', error);
+      
+      // Fallback a sugerencias básicas si hay error
+      suggestions.push(
+        { text: 'Libros', category: 'libros' },
+        { text: 'Material escolar', category: 'escolares' },
+        { text: 'Ofertas', category: 'ofertas' },
+        { text: 'Horarios', category: 'horarios' },
+        { text: 'Ubicación', category: 'ubicacion' },
+        { text: 'Contacto', category: 'contacto' }
+      );
+    }
     
     return suggestions;
   }
@@ -1019,8 +940,8 @@ class AIService {
   }
 
   // Respuesta inteligente de fallback
-  getSmartFallbackResponse(message) {
-    const suggestions = this.generateSmartSuggestions();
+  async getSmartFallbackResponse(message) {
+    const suggestions = await this.generateSmartSuggestions();
     
     let response = 'Entiendo que buscas algo, pero no estoy seguro de qué específicamente. ';
     response += '¿Te refieres a alguna de estas opciones?\n\n';

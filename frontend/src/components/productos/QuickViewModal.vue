@@ -367,8 +367,9 @@ export default {
           precio: precioFinal
         })
 
-        showCantidadModal.value = false
-        close()
+        // El modal se cierra automáticamente desde CantidadModal
+        // showCantidadModal.value = false
+        // close()
 
         // Mostrar alerta de éxito
         Swal.fire({

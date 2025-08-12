@@ -160,8 +160,15 @@ const chatbotController = {
   // Obtener sugerencias de mensajes (MEJORADO)
   getSuggestions: async (req, res) => {
     try {
-      // Usar sugerencias inteligentes del aiService
-      const suggestions = aiService.generateSmartSuggestions();
+      // Limpiar cache forzadamente para evitar duplicados
+      aiService.categoriesCache.clear();
+      aiService.lastCacheUpdate = null;
+      
+      // Forzar actualización del cache
+      await aiService.updateCategoriesAndBrandsCache();
+      
+      // Usar sugerencias inteligentes del aiService (ahora async)
+      const suggestions = await aiService.generateSmartSuggestions();
 
       res.json({
         suggestions: suggestions

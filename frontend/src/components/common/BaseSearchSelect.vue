@@ -86,12 +86,19 @@ watch(searchQuery, () => {
           v-for="item in searchResults"
           :key="item.id"
           @click="handleSelect(item)"
-          class="px-4 py-2 hover:bg-gray-100 cursor-pointer flex justify-between items-center"
+          class="px-4 py-2 hover:bg-gray-100 cursor-pointer"
         >
-          <span>{{ item.nombre }}</span>
-          <span class="text-sm text-gray-500">
-            {{ new Intl.NumberFormat('es-BO', { style: 'currency', currency: 'BOB' }).format(item.precio_l1) }}
-          </span>
+          <div class="flex justify-between items-center">
+            <div class="flex-1">
+              <div class="font-medium text-gray-900">{{ item.nombre }}</div>
+              <div class="text-sm text-gray-500">
+                SKU: {{ item.codigo_sku || 'N/A' }}
+              </div>
+            </div>
+            <div class="text-sm text-gray-600 ml-4">
+              {{ new Intl.NumberFormat('es-BO', { style: 'currency', currency: 'BOB' }).format(item.precio_l1) }}
+            </div>
+          </div>
         </li>
       </ul>
     </div>

@@ -40,7 +40,9 @@ export const useAuthStore = defineStore('auth', () => {
 
         // Actualizar precios del carrito
         const cartStore = useCartStore()
-        cartStore.updatePrices(user.value.nivel_precio)
+        if (user.value && user.value.nivel_precio) {
+          cartStore.updatePrices(user.value.nivel_precio)
+        }
 
         return { success: true, user: response.data.usuario }
       } else {
@@ -143,10 +145,11 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // Inicializar el token en axios si existe
+  // ✅ Inicializar el token en axios si existe y cargar datos del usuario
   if (token.value) {
     axios.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
-    fetchUser()
+    // Usar init() en lugar de fetchUser() directamente para mejor manejo de errores
+    init()
   }
 
   return {

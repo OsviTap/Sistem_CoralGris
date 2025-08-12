@@ -11,6 +11,18 @@ import Navbar from '@/components/landing/Navbar.vue'
 import Footer from '@/components/landing/Footer.vue'
 import { sucursales } from '@/data/sucursales'
 
+// Deshabilitar telemetría de Mapbox para evitar errores de bloqueo
+if (typeof mapboxgl !== 'undefined') {
+  // Interceptar la función postEvent para silenciar telemetría
+  const originalPostEvent = mapboxgl.postEvent;
+  if (originalPostEvent) {
+    mapboxgl.postEvent = function() {
+      // No hacer nada - silenciar telemetría
+      return;
+    };
+  }
+}
+
 const router = useRouter()
 const cartStore = useCartStore()
 const pedidoStore = usePedidoStore()
@@ -21,6 +33,7 @@ const error = ref(null)
 const map = ref(null)
 const marker = ref(null)
 const mapInstance = ref(null)
+const ubicacionGuardada = ref(false)  // Indicador visual de ubicación guardada
 
 const alerta = ref({
   mensaje: '',
@@ -104,6 +117,7 @@ const formData = ref({
   direccion_entrega: '',
   referencias: '',
   coordenadas: null,
+  direccionGeocodificada: '', // ✅ Nueva propiedad para la dirección geocodificada
 
   // Datos de pago
   tipo_pago: 'efectivo',
@@ -133,55 +147,128 @@ const isEnvioNacional = computed(() => {
 })
 
 // Funciones del mapa
-const handleMapClick = (e) => {
+const geocodificarCoordenadas = async (lng, lat) => {
+  try {
+    console.log('🌍 Geocodificando coordenadas:', lng, lat);
+    
+    const response = await fetch(
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${import.meta.env.VITE_MAPBOX_TOKEN}&types=address&language=es`
+    );
+    
+    if (!response.ok) {
+      throw new Error('Error en la geocodificación');
+    }
+    
+    const data = await response.json();
+    
+    if (data.features && data.features.length > 0) {
+      const direccion = data.features[0].place_name_es || data.features[0].place_name;
+      console.log('✅ Dirección geocodificada:', direccion);
+      return direccion;
+    } else {
+      console.log('⚠️ No se encontró dirección para las coordenadas');
+      return null;
+    }
+  } catch (error) {
+    console.error('❌ Error en geocodificación:', error);
+    return null;
+  }
+};
+
+const handleMapClick = async (e) => {
   const { lng, lat } = e.lngLat;
   formData.value.coordenadas = { lng, lat };
   createMarker({ lng, lat });
+  ubicacionGuardada.value = false;  // ✅ Resetear indicador al hacer nuevo clic
+  
+  // ✅ Geocodificar las coordenadas
+  const direccion = await geocodificarCoordenadas(lng, lat);
+  if (direccion) {
+    formData.value.direccionGeocodificada = direccion;
+    // ✅ Auto-completar el campo de dirección si está vacío
+    if (!formData.value.direccion_entrega) {
+      formData.value.direccion_entrega = direccion;
+    }
+  }
+  
   mostrarAlerta('Ubicación seleccionada correctamente', 'success');
 };
 
 const createMarker = (coords) => {
+  console.log('🔍 Creando marcador con coordenadas:', coords);
+  
   if (marker.value) {
+    console.log('🗑️ Removiendo marcador anterior');
     marker.value.remove();
   }
 
+  // ✅ Usar marcador por defecto de Mapbox con configuración optimizada
   marker.value = new mapboxgl.Marker({
-    draggable: true,
-    color: '#CF33D1',
-    scale: Math.max(0.5, Math.min(1.5, mapInstance.value.getZoom() / 12))
+    color: '#CF33D1',  // Color morado
+    draggable: true,   // Arrastrable
+    scale: 1.5         // Escala moderada para visibilidad
   })
     .setLngLat([coords.lng, coords.lat])
     .addTo(mapInstance.value);
 
-  // Manejar eventos del marcador
-  marker.value.on('dragend', (e) => {
+  console.log('✅ Marcador creado:', marker.value);
+  console.log('📍 Posición del marcador:', marker.value.getLngLat());
+
+  // ✅ Verificar que el marcador se agregó correctamente
+  setTimeout(() => {
+    const markerElement = document.querySelector('.mapboxgl-marker');
+    if (markerElement) {
+      console.log('✅ Elemento del marcador encontrado en el DOM:', markerElement);
+      console.log('✅ Estilos del marcador:', markerElement.style);
+    } else {
+      console.log('❌ No se encontró el elemento del marcador en el DOM');
+    }
+  }, 100);
+
+  // ✅ Manejar eventos del marcador
+  marker.value.on('dragend', async (e) => {
     const { lng, lat } = e.target.getLngLat();
     formData.value.coordenadas = { lng, lat };
+    ubicacionGuardada.value = false;  // ✅ Resetear indicador al arrastrar
+    
+    // ✅ Geocodificar las nuevas coordenadas
+    const direccion = await geocodificarCoordenadas(lng, lat);
+    if (direccion) {
+      formData.value.direccionGeocodificada = direccion;
+    }
+    
     mostrarAlerta('Ubicación actualizada', 'success');
-  });
-
-  // Actualizar escala al hacer zoom
-  mapInstance.value.on('zoom', () => {
-    const scale = Math.max(0.5, Math.min(1.5, mapInstance.value.getZoom() / 12));
-    marker.value.setScale(scale);
   });
 };
 
 const initMap = () => {
-  if (!formData.value.departamento) return;
+  console.log('🗺️ Inicializando mapa...');
+  if (!formData.value.departamento) {
+    console.log('❌ No hay departamento seleccionado');
+    return;
+  }
   
   nextTick(() => {
     const mapContainer = document.getElementById('map');
-    if (!mapContainer) return;
+    if (!mapContainer) {
+      console.log('❌ No se encontró el contenedor del mapa');
+      return;
+    }
+
+    console.log('✅ Contenedor del mapa encontrado');
 
     // Destruir mapa existente
     if (mapInstance.value) {
+      console.log('🗑️ Destruyendo mapa existente');
       mapInstance.value.remove();
       marker.value = null;
     }
 
     mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
+    console.log('🔑 Token de Mapbox configurado');
+    
     const departamento = departamentos.value.find(d => d.id === formData.value.departamento);
+    console.log('📍 Departamento seleccionado:', departamento);
 
     // Asegurarse que el contenedor del mapa tenga position relative
     mapContainer.style.position = 'relative';
@@ -198,19 +285,29 @@ const initMap = () => {
       ]
     });
 
-    // Esperar a que el mapa se cargue completamente
-    mapInstance.value.on('load', () => {
-      // Crear marcador
-      marker.value = new mapboxgl.Marker({
-        color: '#CF33D1',
-        draggable: false
-      })
-        .setLngLat(departamento.coordenadas)
-        .addTo(mapInstance.value);
+    console.log('🗺️ Mapa creado:', mapInstance.value);
 
-      // Actualizar posición del marcador al mover el mapa
-      mapInstance.value.on('move', () => {
-        marker.value.setLngLat(mapInstance.value.getCenter());
+    // ✅ Esperar a que el mapa se cargue completamente
+    mapInstance.value.on('load', () => {
+      console.log('✅ Mapa cargado completamente');
+      
+      // ❌ NO crear marcador automáticamente - esperar a que el usuario haga clic
+      // createMarker(departamento.coordenadas);
+      
+      // ✅ Conectar clics del mapa DESPUÉS de crear el marcador
+      mapInstance.value.on('click', (e) => {
+        console.log('🖱️ Clic en el mapa:', e.lngLat);
+        // ✅ Evitar clic en el marcador
+        if (e.originalEvent.target.closest('.mapboxgl-marker')) {
+          console.log('❌ Clic en marcador, ignorando');
+          return;
+        }
+        
+        const { lng, lat } = e.lngLat;
+        formData.value.coordenadas = { lng, lat };
+        createMarker({ lng, lat });
+        ubicacionGuardada.value = false;
+        mostrarAlerta('Ubicación seleccionada correctamente', 'success');
       });
     });
   });
@@ -337,19 +434,22 @@ const cambiarUbicacionMapa = () => {
   
   // Limpiar coordenadas anteriores
   formData.value.coordenadas = null;
+  ubicacionGuardada.value = false;  // ✅ Resetear indicador visual
   
   // Reiniciar el mapa
   initMap();
 };
 
 const guardarUbicacion = () => {
-  if (!mapInstance.value) return;
+  if (!mapInstance.value || !marker.value) return;
   
-  const center = mapInstance.value.getCenter();
+  // ✅ Usar posición del marcador, no del centro del mapa
+  const markerPosition = marker.value.getLngLat();
   formData.value.coordenadas = {
-    lng: center.lng,
-    lat: center.lat
+    lng: markerPosition.lng,
+    lat: markerPosition.lat
   };
+  ubicacionGuardada.value = true;  // ✅ Indicador visual
   mostrarAlerta('¡Ubicación guardada correctamente!', 'success');
 };
 
@@ -556,18 +656,90 @@ onMounted(() => {
                   <label class="block text-sm font-medium text-gray-700 mb-2">
                     Ubicación en el mapa
                   </label>
+                  
+                  <!-- Instrucciones para usuarios -->
+                  <div class="mb-4 p-4 bg-blue-50 rounded-lg border-l-4 border-blue-400">
+                    <div class="flex items-start gap-3">
+                      <div class="flex-shrink-0 mt-1">
+                        <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div class="flex-1">
+                        <h4 class="text-sm font-medium text-blue-800 mb-2">
+                          📍 ¿Cómo seleccionar tu ubicación?
+                        </h4>
+                        <div class="text-sm text-blue-700 space-y-2">
+                          <div class="flex items-center gap-2">
+                            <span class="w-6 h-6 bg-blue-200 rounded-full flex items-center justify-center text-xs font-bold">1</span>
+                            <span><strong>Toca</strong> cualquier punto del mapa para colocar el marcador</span>
+                          </div>
+                          <div class="flex items-center gap-2">
+                            <span class="w-6 h-6 bg-blue-200 rounded-full flex items-center justify-center text-xs font-bold">2</span>
+                            <span><strong>Arrastra</strong> el marcador morado para ajustar la posición</span>
+                          </div>
+                          <div class="flex items-center gap-2">
+                            <span class="w-6 h-6 bg-blue-200 rounded-full flex items-center justify-center text-xs font-bold">3</span>
+                            <span><strong>Presiona</strong> "Guardar Ubicación" para confirmar</span>
+                          </div>
+                          <div class="mt-3 p-2 bg-blue-100 rounded text-xs">
+                            💡 <strong>Consejo:</strong> Acerca el mapa (zoom) para seleccionar con más precisión
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- Mensaje de instrucción -->
+                  <div v-if="!formData.coordenadas" class="mb-2 p-3 bg-blue-50 rounded-lg">
+                    <p class="text-sm text-blue-700">
+                      💡 <strong>Haz clic en el mapa</strong> para seleccionar tu ubicación de entrega
+                    </p>
+                  </div>
+                  
                   <div id="map" class="w-full h-96 rounded-lg border-2 border-gray-200"></div>
+                  
+                  <!-- Indicador de coordenadas -->
+                  <div v-if="formData.coordenadas" class="mt-2 p-3 bg-blue-50 rounded-lg">
+                    <div class="space-y-2">
+                      <div class="flex items-center gap-2">
+                        <span class="text-blue-600">📍</span>
+                        <span class="text-sm font-medium text-blue-800">Coordenadas seleccionadas:</span>
+                      </div>
+                      <div class="text-sm text-blue-700 font-mono bg-blue-100 p-2 rounded">
+                        {{ formData.coordenadas.lat.toFixed(6) }}, {{ formData.coordenadas.lng.toFixed(6) }}
+                      </div>
+                      
+                      <!-- Dirección geocodificada -->
+                      <div v-if="formData.direccionGeocodificada" class="mt-3">
+                        <div class="flex items-center gap-2">
+                          <span class="text-green-600">🏠</span>
+                          <span class="text-sm font-medium text-green-800">Dirección detectada:</span>
+                        </div>
+                        <div class="text-sm text-green-700 bg-green-100 p-2 rounded mt-1">
+                          {{ formData.direccionGeocodificada }}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <div class="mt-4">
                   <button
                     @click="guardarUbicacion"
-                    class="w-full bg-[#CF33D1] text-white py-3 px-4 rounded-lg hover:bg-opacity-90 transition-colors flex items-center justify-center gap-2"
+                    :class="{
+                      'w-full px-4 py-3 rounded-lg transition-colors flex items-center justify-center gap-2': true,
+                      'bg-[#CF33D1] text-white hover:bg-opacity-90': !ubicacionGuardada,
+                      'bg-green-500 text-white hover:bg-green-600': ubicacionGuardada
+                    }"
                   >
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg v-if="!ubicacionGuardada" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                     </svg>
-                    Guardar Ubicación
+                    <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    {{ ubicacionGuardada ? 'Ubicación Guardada ✓' : 'Guardar Ubicación' }}
                   </button>
                 </div>
               </div>
@@ -826,8 +998,25 @@ onMounted(() => {
 
 .mapboxgl-marker {
   position: absolute !important;
-  z-index: 1 !important;
-  pointer-events: none !important;
+  z-index: 9999 !important;
+  pointer-events: auto !important;
+  filter: drop-shadow(0 2px 8px rgba(0,0,0,0.4)) !important;
+}
+
+.mapboxgl-marker svg {
+  width: 30px !important;
+  height: 45px !important;
+  cursor: grab !important;
+  transition: transform 0.2s ease !important;
+}
+
+.mapboxgl-marker:hover svg {
+  transform: scale(1.1) !important;
+}
+
+.mapboxgl-marker:active svg {
+  cursor: grabbing !important;
+  transform: scale(0.95) !important;
 }
 
 .mapboxgl-canvas {
