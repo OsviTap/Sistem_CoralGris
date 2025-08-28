@@ -35,6 +35,16 @@ app.get('/', (req, res) => {
   });
 });
 
+// Health check para Railway (debe estar en la raíz)
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'OK', 
+    message: 'Servidor funcionando',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
 // Rutas API
 app.use('/api', routes);
 
