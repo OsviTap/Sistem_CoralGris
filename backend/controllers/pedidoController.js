@@ -12,10 +12,26 @@ const pedidoController = {
     
     try {
       const {
+        // Datos personales
+        nombre,
+        apellidos,
+        telefono,
+        email,
+        
+        // Datos del pedido
         productos,
         tipo_pago,
         tipo_entrega,
         direccion_entrega,
+        referencias,
+        coordenadas,
+        sucursal_id,
+        
+        // Datos de facturación
+        requiere_factura,
+        razon_social,
+        nit,
+        
         notas
       } = req.body;
       
@@ -47,11 +63,21 @@ const pedidoController = {
           });
         }
 
-        // Obtener precio según nivel del usuario
-        const precio = req.usuario.nivel_precio === 'L1' ? producto.precio_l1 :
-                      req.usuario.nivel_precio === 'L2' ? producto.precio_l2 :
-                      req.usuario.nivel_precio === 'L3' ? producto.precio_l3 :
-                      producto.precio_l4;
+        // Determinar precio según cantidad y nivel de usuario
+        let precio;
+        const esMayorista = item.cantidad >= producto.cantidad_mayoreo;
+        const esMayoristaEspecial = item.cantidad >= producto.cantidad_mayoreo_especial;
+
+        if (req.usuario) {
+          // Usuario registrado
+          precio = req.usuario.nivel_precio === 'L1' ? producto.precio_l1 :
+                  req.usuario.nivel_precio === 'L2' ? producto.precio_l2 :
+                  req.usuario.nivel_precio === 'L3' ? producto.precio_l3 :
+                  producto.precio_l4;
+        } else {
+          // Usuario no registrado
+          precio = esMayorista ? producto.precio_l2 : producto.precio_l1;
+        }
 
         const subtotal = precio * item.cantidad;
         total += subtotal;
@@ -71,10 +97,20 @@ const pedidoController = {
 
       // Crear pedido
       const pedido = await Pedido.create({
-        cliente_id: req.usuario.id,
+        cliente_id: req.usuario?.id,
+        nombre,
+        apellidos,
+        telefono,
+        email,
         tipo_pago,
         tipo_entrega,
         direccion_entrega,
+        referencias,
+        coordenadas,
+        sucursal_id,
+        requiere_factura,
+        razon_social,
+        nit,
         notas,
         total,
         estado: 'pendiente'
@@ -89,20 +125,22 @@ const pedidoController = {
         { transaction }
       );
 
-      // Enviar email de confirmación
-      await emailService.sendOrderConfirmation(pedido, req.usuario);
+      if (req.usuario) {
+        // Enviar email de confirmación solo si es usuario registrado
+        await emailService.sendOrderConfirmation(pedido, req.usuario);
 
-      // Notificar a vendedores por WebSocket
-      io.to('vendedores').emit('nuevo_pedido', {
-        id: pedido.id,
-        cliente: req.usuario.nombre,
-        total
-      });
+        // Notificar a vendedores por WebSocket
+        io.to('vendedores').emit('nuevo_pedido', {
+          id: pedido.id,
+          cliente: req.usuario.nombre,
+          total
+        });
+      }
 
       await transaction.commit();
 
       // Registrar en el log
-      logger.info(`Nuevo pedido creado #${pedido.id} por usuario ${req.usuario.id}`);
+      logger.info(`Nuevo pedido creado #${pedido.id}${req.usuario ? ` por usuario ${req.usuario.id}` : ''}`);
 
       res.status(201).json({
         message: 'Pedido creado exitosamente',
@@ -206,6 +244,49 @@ const pedidoController = {
       res.json({ message: 'Estado del pedido actualizado', pedido });
     } catch (error) {
       console.error('Error al actualizar estado del pedido:', error);
+      res.status(500).json({ message: 'Error en el servidor' });
+    }
+  },
+
+  // Agregar este nuevo método
+  getPedidoById: async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const pedido = await Pedido.findByPk(id, {
+        include: [
+          {
+            model: DetallePedido,
+            as: 'detalles',
+            include: [{
+              model: Producto,
+              attributes: ['id', 'nombre', 'imagen_url', 'codigo_sku']
+            }]
+          },
+          {
+            model: Usuario,
+            as: 'Cliente',
+            attributes: ['id', 'nombre', 'email', 'telefono']
+          },
+          {
+            model: Sucursal,
+            attributes: ['id', 'nombre', 'direccion']
+          }
+        ]
+      });
+
+      if (!pedido) {
+        return res.status(404).json({ message: 'Pedido no encontrado' });
+      }
+
+      // Si es cliente, verificar que sea su pedido
+      if (req.usuario.tipo_usuario === 'cliente' && pedido.cliente_id !== req.usuario.id) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+
+      res.json(pedido);
+    } catch (error) {
+      console.error('Error al obtener pedido:', error);
       res.status(500).json({ message: 'Error en el servidor' });
     }
   }

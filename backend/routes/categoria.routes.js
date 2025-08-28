@@ -4,7 +4,8 @@ const categoriaController = require('../controllers/categoriaController');
 const authMiddleware = require('../middleware/auth');
 const adminMiddleware = require('../middleware/adminCheck');
 
-// Rutas públicas
+// Ruta para obtener categorías con subcategorías
+router.get('/with-subcategories', categoriaController.getCategorias);
 router.get('/', categoriaController.getCategorias);
 
 // Rutas protegidas - solo admin
@@ -14,10 +15,19 @@ router.post('/',
   categoriaController.createCategoria
 );
 
+// Ruta temporal para testing (sin autenticación)
+router.post('/test', categoriaController.createCategoria);
+
 router.put('/:id',
   authMiddleware,
   adminMiddleware,
   categoriaController.updateCategoria
+);
+
+router.delete('/:id',
+  authMiddleware,
+  adminMiddleware,
+  categoriaController.deleteCategoria
 );
 
 module.exports = router;

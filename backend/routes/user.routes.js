@@ -4,12 +4,12 @@ const userController = require('../controllers/userController');
 const authMiddleware = require('../middleware/auth');
 const adminMiddleware = require('../middleware/adminCheck');
 
-// Todas las rutas requieren autenticación
+// Aplicar middleware de autenticación a todas las rutas
 router.use(authMiddleware);
 
 // Rutas para todos los usuarios autenticados
 router.get('/profile', userController.getProfile);
-router.post('/change-password', userController.changePassword);
+router.put('/profile', userController.updateProfile);
 
 // Rutas solo para admin
 router.get('/',
@@ -17,9 +17,27 @@ router.get('/',
   userController.getUsers
 );
 
+router.get('/:id',
+  adminMiddleware,
+  userController.getById
+);
+
 router.put('/:id',
   adminMiddleware,
   userController.updateUser
 );
+
+router.put('/:id/estado',
+  adminMiddleware,
+  userController.updateEstado
+);
+
+router.post('/',
+  authMiddleware,
+  adminMiddleware,
+  userController.createUser
+);
+
+router.post('/:id/send-credentials', authMiddleware, adminMiddleware, userController.sendCredentials)
 
 module.exports = router;

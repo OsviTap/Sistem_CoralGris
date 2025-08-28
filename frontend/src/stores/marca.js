@@ -43,15 +43,52 @@ export const useMarcaStore = defineStore('marca', {
   actions: {
     async fetchMarcas() {
       this.loading = true;
+      this.error = null;
       try {
         const response = await axios.get('/marcas');
         this.marcas = response.data;
-        this.error = null;
+        return this.marcas;
       } catch (error) {
-        this.error = error.message || 'Error al cargar marcas';
-        console.error('Error:', error);
+        this.error = error.response?.data?.message || 'Error al cargar las marcas';
+        console.error('Error al cargar marcas:', error);
+        throw error;
       } finally {
         this.loading = false;
+      }
+    },
+
+    async createMarca(marcaData) {
+      try {
+        const response = await axios.post('/marcas', marcaData);
+        this.marcas.push(response.data);
+        return response.data;
+      } catch (error) {
+        console.error('Error al crear marca:', error);
+        throw error;
+      }
+    },
+
+    async updateMarca(id, marcaData) {
+      try {
+        const response = await axios.put(`/marcas/${id}`, marcaData);
+        const index = this.marcas.findIndex(m => m.id === id);
+        if (index !== -1) {
+          this.marcas[index] = response.data;
+        }
+        return response.data;
+      } catch (error) {
+        console.error('Error al actualizar marca:', error);
+        throw error;
+      }
+    },
+
+    async deleteMarca(id) {
+      try {
+        await axios.delete(`/marcas/${id}`);
+        this.marcas = this.marcas.filter(m => m.id !== id);
+      } catch (error) {
+        console.error('Error al eliminar marca:', error);
+        throw error;
       }
     }
   }

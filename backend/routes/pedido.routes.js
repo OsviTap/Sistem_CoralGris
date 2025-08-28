@@ -5,16 +5,20 @@ const authMiddleware = require('../middleware/auth');
 const vendedorMiddleware = require('../middleware/vendedorCheck');
 const { pedidoValidations } = require('../middleware/validate');
 
-// Todas las rutas requieren autenticación
+// Ruta pública para crear pedidos (sin autenticación requerida)
+router.post('/guest', pedidoValidations, pedidoController.createPedido);
+
+// Las siguientes rutas requieren autenticación
 router.use(authMiddleware);
 
-// Crear pedido - cualquier usuario autenticado
-router.post('/', authMiddleware,
-  pedidoValidations,
-  pedidoController.createPedido);
+// Crear pedido - usuario autenticado
+router.post('/', pedidoValidations, pedidoController.createPedido);
 
 // Obtener pedidos - filtrado por rol
 router.get('/', pedidoController.getPedidos);
+
+// Obtener un pedido específico
+router.get('/:id', pedidoController.getPedidoById);
 
 // Actualizar estado - solo vendedores y admin
 router.put('/:id/estado',

@@ -9,12 +9,28 @@ const Subcategoria = require('./Subcategoria');
 const Marca = require('./Marca.js');
 const Sucursal = require('./Sucursal');
 const DetallePedido = require('./DetallePedido');
+const Consulta = require('./consulta');
+const InteraccionUsuario = require('./InteraccionUsuario');
+const CategoriaEmergente = require('./CategoriaEmergente');
+const PatronInteraccion = require('./PatronInteraccion');
 
 // Asociaciones de Producto
-Producto.belongsTo(Categoria, { foreignKey: 'categoria_id' });
-Producto.belongsTo(Subcategoria, { foreignKey: 'subcategoria_id' });
-Producto.belongsTo(Marca, { foreignKey: 'marca_id' });
-Producto.hasMany(ColorProducto, { foreignKey: 'producto_id' });
+Producto.belongsTo(Categoria, { 
+  foreignKey: 'categoria_id',
+  as: 'categoria'
+});
+Producto.belongsTo(Subcategoria, { 
+  foreignKey: 'subcategoria_id',
+  as: 'subcategoria'
+});
+Producto.belongsTo(Marca, { 
+  foreignKey: 'marca_id',
+  as: 'marca'
+});
+Producto.hasMany(ColorProducto, { 
+  foreignKey: 'producto_id',
+  as: 'colores'
+});
 
 // Asociaciones de Usuario
 Usuario.belongsTo(Sucursal, { foreignKey: 'sucursal_id' });
@@ -43,6 +59,7 @@ Producto.hasMany(DetallePedido, { foreignKey: 'producto_id' });
 module.exports = {
   Producto,
   ColorProducto,
+  Consulta,
   Usuario,
   Pedido,
   Mensaje,
@@ -51,5 +68,8 @@ module.exports = {
   Subcategoria,
   Marca,
   Sucursal,
-  DetallePedido
+  DetallePedido,
+  InteraccionUsuario,
+  CategoriaEmergente,
+  PatronInteraccion
 };

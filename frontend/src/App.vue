@@ -22,4 +22,10 @@ body {
   width: 100%;
   min-height: 100vh;
 }
+
+/* Ocultar el botón de WhatsApp en las rutas del dashboard y login */
+.router-link-active[href*="dashboard"] ~ .whatsapp-button,
+.router-link-active[href*="login"] ~ .whatsapp-button {
+  display: none !important;
+}
 </style>

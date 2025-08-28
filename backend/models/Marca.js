@@ -11,6 +11,18 @@ const Marca = sequelize.define('Marca', {
     type: DataTypes.TEXT,
     allowNull: false,
     unique: true
+  },
+  descripcion: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  pais_origen: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  estado: {
+    type: DataTypes.TEXT,
+    defaultValue: 'activo'
   }
 }, {
   tableName: 'marcas',

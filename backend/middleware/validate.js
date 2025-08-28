@@ -23,6 +23,20 @@ const userValidations = [
 ];
 
 const pedidoValidations = [
+  // Datos personales
+  body('nombre').notEmpty().trim()
+    .withMessage('El nombre es requerido'),
+  
+  body('apellidos').notEmpty().trim()
+    .withMessage('Los apellidos son requeridos'),
+  
+  body('telefono').notEmpty()
+    .withMessage('El teléfono es requerido'),
+  
+  body('email').optional().isEmail()
+    .withMessage('Email inválido'),
+
+  // Productos
   body('productos').isArray().notEmpty()
     .withMessage('Debe incluir al menos un producto'),
   
@@ -32,16 +46,47 @@ const pedidoValidations = [
   body('productos.*.cantidad').isInt({ min: 1 })
     .withMessage('Cantidad debe ser mayor a 0'),
   
-  body('tipo_pago').isIn(['efectivo', 'tarjeta', 'transferencia'])
-    .withMessage('Tipo de pago inválido'),
-  
+  // Datos de entrega
   body('tipo_entrega').isIn(['delivery', 'recojo'])
     .withMessage('Tipo de entrega inválido'),
   
   body('direccion_entrega')
     .if(body('tipo_entrega').equals('delivery'))
     .notEmpty()
-    .withMessage('Dirección de entrega es requerida para delivery')
+    .withMessage('Dirección de entrega es requerida para delivery'),
+  
+  body('referencias').optional(),
+  
+  body('coordenadas')
+    .if(body('tipo_entrega').equals('delivery'))
+    .notEmpty()
+    .isObject()
+    .withMessage('Las coordenadas son requeridas para delivery'),
+  
+  body('sucursal_id')
+    .if(body('tipo_entrega').equals('recojo'))
+    .isInt()
+    .withMessage('Sucursal inválida'),
+
+  // Datos de pago
+  body('tipo_pago').isIn(['efectivo', 'transferencia', 'qr'])
+    .withMessage('Tipo de pago inválido'),
+
+  // Datos de facturación
+  body('requiere_factura').isBoolean()
+    .withMessage('Debe especificar si requiere factura'),
+  
+  body('razon_social')
+    .if(body('requiere_factura').equals(true))
+    .notEmpty()
+    .withMessage('Razón social requerida para factura'),
+  
+  body('nit')
+    .if(body('requiere_factura').equals(true))
+    .notEmpty()
+    .withMessage('NIT requerido para factura'),
+
+  validate
 ];
 
 module.exports = {
