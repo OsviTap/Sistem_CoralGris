@@ -11,7 +11,18 @@ const errorHandler = require('./middleware/errorHandler');
 const app = express();
 
 // Middlewares
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'https://sistem-coral-gris.vercel.app',
+    'https://sistem-coral-gris-*.vercel.app',
+    'https://*.vercel.app'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
