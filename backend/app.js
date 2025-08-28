@@ -12,13 +12,7 @@ const app = express();
 
 // Middlewares
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'https://sistem-coral-gris.vercel.app',
-    'https://sistem-coral-gris-*.vercel.app',
-    'https://*.vercel.app'
-  ],
+  origin: true, // Permite todos los orígenes
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
