@@ -23,6 +23,41 @@ export const useCategoriaStore = defineStore('categoria', {
       } finally {
         this.loading = false
       }
+    },
+
+    async createCategoria(categoriaData) {
+      try {
+        const response = await axios.post('/categorias', categoriaData)
+        this.categorias.push(response.data)
+        return response.data
+      } catch (error) {
+        console.error('Error al crear categoría:', error)
+        throw error
+      }
+    },
+
+    async updateCategoria(id, categoriaData) {
+      try {
+        const response = await axios.put(`/categorias/${id}`, categoriaData)
+        const index = this.categorias.findIndex(c => c.id === id)
+        if (index !== -1) {
+          this.categorias[index] = response.data
+        }
+        return response.data
+      } catch (error) {
+        console.error('Error al actualizar categoría:', error)
+        throw error
+      }
+    },
+
+    async deleteCategoria(id) {
+      try {
+        await axios.delete(`/categorias/${id}`)
+        this.categorias = this.categorias.filter(c => c.id !== id)
+      } catch (error) {
+        console.error('Error al eliminar categoría:', error)
+        throw error
+      }
     }
   }
 }) 

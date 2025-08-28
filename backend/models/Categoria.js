@@ -11,6 +11,14 @@ const Categoria = sequelize.define('Categoria', {
     type: DataTypes.TEXT,
     allowNull: false,
     unique: true
+  },
+  descripcion: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  estado: {
+    type: DataTypes.TEXT,
+    defaultValue: 'activo'
   }
 }, {
   tableName: 'categorias',

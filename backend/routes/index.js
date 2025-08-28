@@ -25,4 +25,13 @@ router.use('/consultas', consultaRoutes);
 router.use('/recomendaciones', recomendacionesRoutes);
 router.use('/chatbot', chatbotRoutes);
 
+// Health check para Railway
+router.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
 module.exports = router;

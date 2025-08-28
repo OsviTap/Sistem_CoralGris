@@ -15,10 +15,19 @@ router.post('/',
   categoriaController.createCategoria
 );
 
+// Ruta temporal para testing (sin autenticación)
+router.post('/test', categoriaController.createCategoria);
+
 router.put('/:id',
   authMiddleware,
   adminMiddleware,
   categoriaController.updateCategoria
+);
+
+router.delete('/:id',
+  authMiddleware,
+  adminMiddleware,
+  categoriaController.deleteCategoria
 );
 
 module.exports = router;

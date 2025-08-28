@@ -2,6 +2,9 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 
+// Importar modelos para sincronizar la base de datos
+require('./models');
+
 const routes = require('./routes');
 const errorHandler = require('./middleware/errorHandler');
 

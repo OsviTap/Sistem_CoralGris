@@ -367,9 +367,9 @@ export default {
           precio: precioFinal
         })
 
-        // El modal se cierra automáticamente desde CantidadModal
-        // showCantidadModal.value = false
-        // close()
+        // CERRAR AMBOS MODALES después de añadir al carrito
+        showCantidadModal.value = false
+        close() // Esto cierra el QuickViewModal principal
 
         // Mostrar alerta de éxito
         Swal.fire({

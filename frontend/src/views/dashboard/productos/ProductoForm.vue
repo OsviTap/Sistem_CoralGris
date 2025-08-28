@@ -6,6 +6,8 @@ import { useCategoriaStore } from '@/stores/categoria'
 import { useMarcaStore } from '@/stores/marca'
 import BaseInput from '@/components/common/BaseInput.vue'
 import BaseSelect from '@/components/common/BaseSelect.vue'
+import CategoriaModal from '@/components/dashboard/CategoriaModal.vue'
+import MarcaModal from '@/components/dashboard/MarcaModal.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -45,6 +47,12 @@ const tiposCodigo = [
 
 const imagenPrincipalPreview = ref('')
 const imagenesAdicionalesPreview = ref([])
+
+// Modales para categorías y marcas
+const showCategoriaModal = ref(false)
+const showMarcaModal = ref(false)
+const categoriaSeleccionada = ref(null)
+const marcaSeleccionada = ref(null)
 
 const handleImagenPrincipal = (event) => {
   const file = event.target.files[0]
@@ -205,6 +213,55 @@ const eliminarImagenAdicional = (index) => {
     formData.value.imagenes_adicionales.splice(index, 1);
   }
 };
+
+// Funciones para manejar modales de categorías y marcas
+const abrirCategoriaModal = () => {
+  showCategoriaModal.value = true
+}
+
+const cerrarCategoriaModal = () => {
+  showCategoriaModal.value = false
+  categoriaSeleccionada.value = null
+}
+
+const abrirMarcaModal = () => {
+  showMarcaModal.value = true
+}
+
+const cerrarMarcaModal = () => {
+  showMarcaModal.value = false
+  marcaSeleccionada.value = null
+}
+
+const onCategoriaSaved = async () => {
+  // Recargar categorías y actualizar el select
+  await categoriaStore.fetchCategorias()
+  categorias.value = categoriaStore.categorias.map(cat => ({
+    value: cat.id,
+    label: cat.nombre
+  }))
+  
+  // Si se creó una nueva categoría, seleccionarla automáticamente
+  if (categoriaStore.categorias.length > 0) {
+    const ultimaCategoria = categoriaStore.categorias[categoriaStore.categorias.length - 1]
+    formData.value.categoria_id = ultimaCategoria.id
+  }
+}
+
+const onMarcaSaved = async () => {
+  // Recargar marcas y actualizar el select
+  await marcaStore.fetchMarcas()
+  marcas.value = marcaStore.marcas.map(marca => ({
+    value: marca.id,
+    label: marca.nombre
+  }))
+  
+  // Si se creó una nueva marca, seleccionarla automáticamente
+  if (marcaStore.marcas.length > 0) {
+    const ultimaMarca = marcaStore.marcas[marcaStore.marcas.length - 1]
+    formData.value.marca_id = ultimaMarca.id
+  }
+}
 </script>
 
 <template>
@@ -249,19 +306,39 @@ const eliminarImagenAdicional = (index) => {
             placeholder="Cantidad mínima para precio mayorista"
           />
           
-          <BaseSelect
-            v-model="formData.categoria_id"
-            label="Categoría"
-            :options="categorias"
-            required
-          />
+          <div class="space-y-2">
+            <BaseSelect
+              v-model="formData.categoria_id"
+              label="Categoría"
+              :options="categorias"
+              required
+            />
+            <button
+              type="button"
+              @click="abrirCategoriaModal"
+              class="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-md text-[#33c7d1] bg-[#33c7d1] bg-opacity-10 hover:bg-opacity-20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#33c7d1]"
+            >
+              <i class="fas fa-plus mr-1"></i>
+              Agregar Categoría
+            </button>
+          </div>
           
-          <BaseSelect
-            v-model="formData.marca_id"
-            label="Marca"
-            :options="marcas"
-            required
-          />
+          <div class="space-y-2">
+            <BaseSelect
+              v-model="formData.marca_id"
+              label="Marca"
+              :options="marcas"
+              required
+            />
+            <button
+              type="button"
+              @click="abrirMarcaModal"
+              class="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-md text-[#33c7d1] bg-[#33c7d1] bg-opacity-10 hover:bg-opacity-20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#33c7d1]"
+            >
+              <i class="fas fa-plus mr-1"></i>
+              Agregar Marca
+            </button>
+          </div>
         </div>
 
         <!-- Precios -->
@@ -442,5 +519,20 @@ const eliminarImagenAdicional = (index) => {
         </button>
       </div>
     </form>
+
+    <!-- Modales para Categorías y Marcas -->
+    <CategoriaModal
+      :is-open="showCategoriaModal"
+      :categoria="categoriaSeleccionada"
+      @close="cerrarCategoriaModal"
+      @saved="onCategoriaSaved"
+    />
+
+    <MarcaModal
+      :is-open="showMarcaModal"
+      :marca="marcaSeleccionada"
+      @close="cerrarMarcaModal"
+      @saved="onMarcaSaved"
+    />
   </div>
 </template> 

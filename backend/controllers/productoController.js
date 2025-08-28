@@ -1,5 +1,4 @@
 const { Producto, Categoria, Marca, ColorProducto, Venta, DetalleVenta, Pedido, DetallePedido } = require('../models');
-const supabase = require('../config/supabase');
 const { Op, Sequelize } = require('sequelize');
 const recommendationService = require('../services/recommendationService');
 const fpGrowth = require('node-fpgrowth');
