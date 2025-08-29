@@ -17,15 +17,15 @@ const PatronInteraccion = require('./PatronInteraccion');
 // Asociaciones de Producto
 Producto.belongsTo(Categoria, { 
   foreignKey: 'categoria_id',
-  as: 'categoria'
+  as: 'categoriaProducto'
 });
 Producto.belongsTo(Subcategoria, { 
   foreignKey: 'subcategoria_id',
-  as: 'subcategoria'
+  as: 'subcategoriaProducto'
 });
 Producto.belongsTo(Marca, { 
   foreignKey: 'marca_id',
-  as: 'marca'
+  as: 'marcaProducto'
 });
 Producto.hasMany(ColorProducto, { 
   foreignKey: 'producto_id',
@@ -48,7 +48,16 @@ Mensaje.belongsTo(Usuario, { foreignKey: 'receptor_id', as: 'Receptor' });
 
 // Asociaciones de Categoria y Subcategoria
 Categoria.hasMany(Subcategoria, { foreignKey: 'categoria_id', as: 'subcategorias' });
-Subcategoria.belongsTo(Categoria, { foreignKey: 'categoria_id' });
+Subcategoria.belongsTo(Categoria, { foreignKey: 'categoria_id', as: 'categoriaPadre' });
+
+// Asociaciones de Categoria con Producto
+Categoria.hasMany(Producto, { foreignKey: 'categoria_id', as: 'productos' });
+
+// Asociaciones de Subcategoria con Producto
+Subcategoria.hasMany(Producto, { foreignKey: 'subcategoria_id', as: 'productos' });
+
+// Asociaciones de Marca
+Marca.hasMany(Producto, { foreignKey: 'marca_id', as: 'productos' });
 
 // Asociaciones de DetallePedido
 DetallePedido.belongsTo(Pedido, { foreignKey: 'pedido_id' });

@@ -366,11 +366,11 @@ export const useProductoStore = defineStore('producto', () => {
       console.log('Respuesta completa del backend:', response)
 
       // Verificar si la respuesta tiene datos
-      if (!response.data || !response.data.producto) {
+      if (!response.data) {
         throw new Error('La respuesta del servidor no contiene el producto actualizado')
       }
 
-      const productoActualizado = response.data.producto
+      const productoActualizado = response.data
       const productoTransformado = transformarProducto(productoActualizado)
       
       // Actualizar el producto en la lista

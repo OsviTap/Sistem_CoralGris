@@ -1,4 +1,4 @@
-const { Producto, Categoria, Marca, ColorProducto, Venta, DetalleVenta, Pedido, DetallePedido } = require('../models');
+const { Producto, Categoria, Subcategoria, Marca, ColorProducto, Venta, DetalleVenta, Pedido, DetallePedido } = require('../models');
 const { Op, Sequelize } = require('sequelize');
 const recommendationService = require('../services/recommendationService');
 const fpGrowth = require('node-fpgrowth');
@@ -92,12 +92,12 @@ const productoController = {
         include: [
           { 
             model: Categoria,
-            as: 'categoria',
+            as: 'categoriaProducto',
             required: false
           },
           { 
             model: Marca,
-            as: 'marca',
+            as: 'marcaProducto',
             required: false
           }
         ],
@@ -208,11 +208,11 @@ const productoController = {
         include: [
           { 
             model: Categoria,
-            as: 'categoria'
+            as: 'categoriaProducto'
           },
           { 
             model: Marca,
-            as: 'marca'
+            as: 'marcaProducto'
           },
           { 
             model: ColorProducto,
@@ -372,11 +372,11 @@ const productoController = {
         include: [
           { 
             model: Categoria,
-            as: 'categoria'
+            as: 'categoriaProducto'
           },
           { 
             model: Marca,
-            as: 'marca'
+            as: 'marcaProducto'
           }
         ]
       });
@@ -404,8 +404,8 @@ const productoController = {
           stock: { [Op.gt]: 0 }
         },
         include: [
-          { model: Categoria, as: 'categoria' },
-          { model: Marca, as: 'marca' }
+          { model: Categoria, as: 'categoriaProducto' },
+          { model: Marca, as: 'marcaProducto' }
         ],
         order: [
           ['rating', 'DESC'],
@@ -433,11 +433,15 @@ const productoController = {
         include: [
           { 
             model: Categoria,
-            as: 'categoria'
+            as: 'categoriaProducto'
+          },
+          { 
+            model: Subcategoria,
+            as: 'subcategoriaProducto'
           },
           { 
             model: Marca,
-            as: 'marca'
+            as: 'marcaProducto'
           },
           { 
             model: ColorProducto,
@@ -451,6 +455,16 @@ const productoController = {
           message: 'Producto no encontrado' 
         });
       }
+
+      console.log('=== PRODUCTO OBTENIDO POR ID ===')
+      console.log('ID:', producto.id)
+      console.log('Nombre:', producto.nombre)
+      console.log('Categoría ID:', producto.categoria_id)
+      console.log('Subcategoría ID:', producto.subcategoria_id)
+      console.log('Marca ID:', producto.marca_id)
+      console.log('Categoría:', producto.categoriaProducto?.nombre)
+      console.log('Subcategoría:', producto.subcategoriaProducto?.nombre)
+      console.log('Marca:', producto.marcaProducto?.nombre)
 
       res.json({
         producto,
@@ -487,8 +501,8 @@ const productoController = {
 
       const productoActualizado = await Producto.findByPk(id, {
         include: [
-          { model: Categoria, as: 'categoria' },
-          { model: Marca, as: 'marca' },
+          { model: Categoria, as: 'categoriaProducto' },
+          { model: Marca, as: 'marcaProducto' },
           { model: ColorProducto, as: 'colores' }
         ]
       });
@@ -575,11 +589,11 @@ const productoController = {
           },
           { 
             model: Categoria,
-            as: 'categoria'
+            as: 'categoriaProducto'
           },
           {
             model: Marca,
-            as: 'marca'
+            as: 'marcaProducto'
           }
         ],
         order: [
@@ -725,14 +739,68 @@ const productoController = {
   // Actualizar producto
   actualizarProducto: async (req, res) => {
     try {
+      console.log('=== ACTUALIZAR PRODUCTO ===')
+      console.log('ID del producto:', req.params.id)
+      console.log('Datos recibidos:', JSON.stringify(req.body, null, 2))
+      
       const producto = await Producto.findByPk(req.params.id)
       if (!producto) {
         throw new ProductoError('Producto no encontrado', 404)
       }
 
-      await producto.update(req.body)
-      res.json(producto)
+      // Limpiar datos antes de actualizar
+      const datosLimpios = { ...req.body }
+      
+      // Remover campos vacíos que causan problemas con bigint
+      Object.keys(datosLimpios).forEach(key => {
+        if (datosLimpios[key] === '' || datosLimpios[key] === null || datosLimpios[key] === undefined) {
+          delete datosLimpios[key]
+        }
+      })
+      
+      // Convertir campos numéricos
+      if (datosLimpios.precio_l1) datosLimpios.precio_l1 = Number(datosLimpios.precio_l1)
+      if (datosLimpios.precio_l2) datosLimpios.precio_l2 = Number(datosLimpios.precio_l2)
+      if (datosLimpios.precio_l3) datosLimpios.precio_l3 = Number(datosLimpios.precio_l3)
+      if (datosLimpios.precio_l4) datosLimpios.precio_l4 = Number(datosLimpios.precio_l4)
+      if (datosLimpios.cantidad_mayoreo) datosLimpios.cantidad_mayoreo = Number(datosLimpios.cantidad_mayoreo)
+      
+      console.log('Datos limpios a actualizar:', datosLimpios)
+      console.log('Producto encontrado:', producto.id)
+      console.log('Intentando actualizar...')
+      
+      await producto.update(datosLimpios)
+      console.log('Producto actualizado exitosamente')
+      
+      // Obtener el producto actualizado con todas sus relaciones
+      const productoActualizado = await Producto.findByPk(req.params.id, {
+        include: [
+          { 
+            model: Categoria,
+            as: 'categoriaProducto',
+            required: false
+          },
+          { 
+            model: Subcategoria,
+            as: 'subcategoriaProducto',
+            required: false
+          },
+          { 
+            model: Marca,
+            as: 'marcaProducto',
+            required: false
+          }
+        ]
+      })
+      
+      console.log('Producto actualizado con relaciones:', productoActualizado)
+      
+      res.json(productoActualizado)
     } catch (error) {
+      console.error('=== ERROR AL ACTUALIZAR PRODUCTO ===')
+      console.error('Error completo:', error)
+      console.error('Stack trace:', error.stack)
+      
       if (error instanceof ProductoError) {
         res.status(error.code).json({
           error: error.message,
@@ -883,8 +951,8 @@ const productoController = {
       // Obtener el producto actual
       const producto = await Producto.findByPk(id, {
         include: [
-          { model: Categoria, as: 'categoria' },
-          { model: Marca, as: 'marca' }
+          { model: Categoria, as: 'categoriaProducto' },
+          { model: Marca, as: 'marcaProducto' }
         ]
       });
       
@@ -903,8 +971,8 @@ const productoController = {
           agotado: false
         },
         include: [
-          { model: Categoria, as: 'categoria' },
-          { model: Marca, as: 'marca' }
+          { model: Categoria, as: 'categoriaProducto' },
+          { model: Marca, as: 'marcaProducto' }
         ],
         limit: 4
       });
@@ -928,8 +996,8 @@ const productoController = {
           agotado: false
         },
         include: [
-          { model: Categoria, as: 'categoria' },
-          { model: Marca, as: 'marca' }
+          { model: Categoria, as: 'categoriaProducto' },
+          { model: Marca, as: 'marcaProducto' }
         ],
         limit: 6
       });

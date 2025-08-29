@@ -43,6 +43,16 @@ export const dashboardRoutes = {
       }
     },
     {
+      path: 'gestion-productos',
+      name: 'GestionProductos',
+      component: () => import('@/views/dashboard/GestionProductos.vue'),
+      meta: {
+        requiresAuth: true,
+        requiresAdmin: true,
+        title: 'Gestión de Productos'
+      }
+    },
+    {
       path: 'pedidos',
       name: 'DashboardPedidos',
       component: () => import('@/views/dashboard/pedidos/PedidosLista.vue'),

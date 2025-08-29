@@ -93,9 +93,7 @@
             <!-- Descripción -->
             <div class="description-section mb-4 sm:mb-6">
               <h2 class="text-lg sm:text-xl font-semibold mb-2 sm:mb-3">Descripción</h2>
-              <p class="text-sm sm:text-base text-gray-600 leading-relaxed">
-                {{ producto?.descripcion || 'Sin descripción disponible' }}
-              </p>
+              <HtmlRenderer :content="producto?.descripcion" />
             </div>
 
             <!-- Acciones -->
@@ -203,6 +201,7 @@ import { useProductoStore } from '@/stores/producto'
 import { useCartStore } from '@/stores/cart'
 import ProductoCard from '@/components/productos/ProductoCard.vue'
 import CantidadModal from '@/components/productos/CantidadModal.vue'
+import HtmlRenderer from '@/components/common/HtmlRenderer.vue'
 import Swal from 'sweetalert2'
 
 const route = useRoute()

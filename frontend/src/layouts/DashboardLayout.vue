@@ -65,6 +65,16 @@ if (!authStore.canAccessDashboard) {
           </router-link>
 
           <router-link 
+            v-if="authStore.isAdmin"
+            to="/dashboard/gestion-productos" 
+            class="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+            exact-active-class="bg-[#33c7d1] text-white"
+          >
+            <i class="fas fa-cogs mr-2"></i>
+            <span>Gestión de Productos</span>
+          </router-link>
+
+          <router-link 
             to="/dashboard/productos/interes" 
             class="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
             exact-active-class="bg-[#33c7d1] text-white"

@@ -30,7 +30,7 @@ router.put('/:id',
     { name: 'imagen', maxCount: 1 },
     { name: 'imagenes_adicionales', maxCount: 5 }
   ]),
-  productoController.updateProducto
+  productoController.actualizarProducto
 );
 
 router.put('/:id/estado',

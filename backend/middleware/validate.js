@@ -10,6 +10,7 @@ const validate = (req, res, next) => {
 
 const productValidations = [
   body('nombre').notEmpty().trim().escape(),
+  body('descripcion').optional().trim(), // Permitir HTML en descripción
   body('precio_l1').isNumeric().isFloat({ min: 0 }),
   body('stock').optional().isInt({ min: 0 }),
   validate

@@ -4,16 +4,20 @@ import { useRoute, useRouter } from 'vue-router'
 import { useProductoStore } from '@/stores/producto'
 import { useCategoriaStore } from '@/stores/categoria'
 import { useMarcaStore } from '@/stores/marca'
+import { useSubcategoriaStore } from '@/stores/subcategoria'
 import BaseInput from '@/components/common/BaseInput.vue'
 import BaseSelect from '@/components/common/BaseSelect.vue'
+import RichTextEditor from '@/components/common/RichTextEditor.vue'
 import CategoriaModal from '@/components/dashboard/CategoriaModal.vue'
 import MarcaModal from '@/components/dashboard/MarcaModal.vue'
+import SubcategoriaModal from '@/components/dashboard/SubcategoriaModal.vue'
 
 const route = useRoute()
 const router = useRouter()
 const productoStore = useProductoStore()
 const categoriaStore = useCategoriaStore()
 const marcaStore = useMarcaStore()
+const subcategoriaStore = useSubcategoriaStore()
 
 const isEditing = computed(() => !!route.params.id)
 const loading = ref(false)
@@ -31,6 +35,7 @@ const formData = ref({
   precio_l3: '',
   precio_l4: '',
   categoria_id: '',
+  subcategoria_id: '',
   marca_id: '',
   imagen_url: '',
   imagenes_adicionales: [],
@@ -38,6 +43,7 @@ const formData = ref({
 })
 
 const categorias = ref([])
+const subcategorias = ref([])
 const marcas = ref([])
 
 const tiposCodigo = [
@@ -48,10 +54,12 @@ const tiposCodigo = [
 const imagenPrincipalPreview = ref('')
 const imagenesAdicionalesPreview = ref([])
 
-// Modales para categorías y marcas
+// Modales para categorías, subcategorías y marcas
 const showCategoriaModal = ref(false)
+const showSubcategoriaModal = ref(false)
 const showMarcaModal = ref(false)
 const categoriaSeleccionada = ref(null)
+const subcategoriaSeleccionada = ref(null)
 const marcaSeleccionada = ref(null)
 
 const handleImagenPrincipal = (event) => {
@@ -100,12 +108,10 @@ onMounted(async () => {
   error.value = null
 
   try {
-    console.log('ID del producto:', route.params.id)
-    console.log('¿Modo edición?:', isEditing.value)
-
-    // Cargar categorías y marcas
-    const [categoriasData, marcasData] = await Promise.all([
+    // Cargar categorías, subcategorías y marcas
+    const [categoriasData, subcategoriasData, marcasData] = await Promise.all([
       categoriaStore.fetchCategorias(),
+      subcategoriaStore.fetchSubcategorias(),
       marcaStore.fetchMarcas()
     ])
 
@@ -113,6 +119,14 @@ onMounted(async () => {
       categorias.value = categoriasData.map(cat => ({
         value: cat.id,
         label: cat.nombre
+      }))
+    }
+
+    if (subcategoriasData) {
+      subcategorias.value = subcategoriasData.map(sub => ({
+        value: sub.id,
+        label: sub.nombre,
+        categoria_id: sub.categoria_id
       }))
     }
 
@@ -127,7 +141,6 @@ onMounted(async () => {
     if (isEditing.value) {
       try {
         const producto = await productoStore.fetchProducto(route.params.id)
-        console.log('Producto cargado:', producto)
         
         if (producto) {
           formData.value = {
@@ -141,10 +154,16 @@ onMounted(async () => {
             precio_l3: producto.precio_l3 || '',
             precio_l4: producto.precio_l4 || '',
             categoria_id: producto.categoria_id || '',
+            subcategoria_id: producto.subcategoria_id || '',
             marca_id: producto.marca_id || '',
             imagen_url: producto.imagen_url || '',
             imagenes_adicionales: producto.imagenes_adicionales || [],
             agotado: producto.agotado || false
+          }
+          
+          // Cargar subcategorías de la categoría del producto ANTES de establecer subcategoria_id
+          if (producto.categoria_id) {
+            await loadSubcategoriasByCategoria(producto.categoria_id)
           }
           
           // Establecer preview de imagen principal
@@ -183,6 +202,47 @@ watch(() => formData.value.tipo_codigo, (newValue) => {
   }
 })
 
+// Limpiar subcategoría cuando cambia la categoría
+watch(() => formData.value.categoria_id, async (newCategoriaId, oldCategoriaId) => {
+  if (newCategoriaId !== oldCategoriaId) {
+    // Solo limpiar subcategoría si la categoría cambió realmente (no en carga inicial)
+    // y si la subcategoría pertenece a una categoría diferente
+    if (oldCategoriaId && newCategoriaId && formData.value.subcategoria_id) {
+      // Cargar subcategorías de la nueva categoría primero
+      await loadSubcategoriasByCategoria(newCategoriaId)
+
+      // Verificar si la subcategoría actual pertenece a la nueva categoría
+      const subcategoriaPertenece = subcategorias.value.some(sub => sub.value == formData.value.subcategoria_id)
+      if (!subcategoriaPertenece) {
+        formData.value.subcategoria_id = ''
+      }
+    } else if (newCategoriaId) {
+      // Cargar subcategorías de la nueva categoría
+      await loadSubcategoriasByCategoria(newCategoriaId)
+    } else {
+      subcategorias.value = []
+      formData.value.subcategoria_id = ''
+    }
+  }
+})
+
+// Computed para subcategorías filtradas por categoría
+const subcategoriasFiltradas = computed(() => {
+  if (!formData.value.categoria_id) {
+    return []
+  }
+
+  // Convertir ambos a números para comparación
+  const categoriaId = parseInt(formData.value.categoria_id)
+
+  const filtradas = subcategorias.value.filter(sub => {
+    const subCategoriaId = parseInt(sub.categoria_id)
+    return subCategoriaId === categoriaId
+  })
+
+  return filtradas
+})
+
 const handleSubmit = async () => {
   saving.value = true
   error.value = null
@@ -191,15 +251,35 @@ const handleSubmit = async () => {
     // Preparar los datos para enviar
     const datosParaEnviar = { ...formData.value }
     
-    // Asegurarnos de que el estado se envíe correctamente
-    datosParaEnviar.estado = formData.value.agotado ? 'inactivo' : 'activo'
-    
-    if (isEditing.value) {
-      await productoStore.actualizarProducto(route.params.id, datosParaEnviar)
-    } else {
-      await productoStore.createProducto(datosParaEnviar)
+    // Limpiar campos vacíos que causan problemas con bigint
+    if (datosParaEnviar.categoria_id === '' || datosParaEnviar.categoria_id === null) {
+      delete datosParaEnviar.categoria_id
     }
-    router.push('/dashboard/productos')
+    if (datosParaEnviar.subcategoria_id === '' || datosParaEnviar.subcategoria_id === null) {
+      delete datosParaEnviar.subcategoria_id
+    }
+    if (datosParaEnviar.marca_id === '' || datosParaEnviar.marca_id === null) {
+      delete datosParaEnviar.marca_id
+    }
+    if (datosParaEnviar.cantidad_mayoreo === '' || datosParaEnviar.cantidad_mayoreo === null) {
+      delete datosParaEnviar.cantidad_mayoreo
+    }
+    
+    // Convertir campos numéricos
+    if (datosParaEnviar.precio_l1) datosParaEnviar.precio_l1 = Number(datosParaEnviar.precio_l1)
+    if (datosParaEnviar.precio_l2) datosParaEnviar.precio_l2 = Number(datosParaEnviar.precio_l2)
+    if (datosParaEnviar.precio_l3) datosParaEnviar.precio_l3 = Number(datosParaEnviar.precio_l3)
+    if (datosParaEnviar.precio_l4) datosParaEnviar.precio_l4 = Number(datosParaEnviar.precio_l4)
+    
+      // Asegurarnos de que el estado se envíe correctamente
+      datosParaEnviar.estado = formData.value.agotado ? 'inactivo' : 'activo'
+
+      if (isEditing.value) {
+        await productoStore.actualizarProducto(route.params.id, datosParaEnviar)
+      } else {
+        await productoStore.createProducto(datosParaEnviar)
+      }
+      router.push('/dashboard/productos')
   } catch (err) {
     error.value = err.response?.data?.message || 'Error al guardar el producto'
     console.error('Error en handleSubmit:', err)
@@ -233,6 +313,11 @@ const cerrarMarcaModal = () => {
   marcaSeleccionada.value = null
 }
 
+const cerrarSubcategoriaModal = () => {
+  showSubcategoriaModal.value = false
+  subcategoriaSeleccionada.value = null
+}
+
 const onCategoriaSaved = async () => {
   // Recargar categorías y actualizar el select
   await categoriaStore.fetchCategorias()
@@ -260,6 +345,38 @@ const onMarcaSaved = async () => {
   if (marcaStore.marcas.length > 0) {
     const ultimaMarca = marcaStore.marcas[marcaStore.marcas.length - 1]
     formData.value.marca_id = ultimaMarca.id
+  }
+}
+
+const onSubcategoriaSaved = async () => {
+  // Recargar subcategorías y actualizar el select
+  await subcategoriaStore.fetchSubcategorias()
+  subcategorias.value = subcategoriaStore.subcategorias.map(sub => ({
+    value: sub.id,
+    label: sub.nombre,
+    categoria_id: sub.categoria_id
+  }))
+  
+  // Si se creó una nueva subcategoría, seleccionarla automáticamente
+  if (subcategoriaStore.subcategorias.length > 0) {
+    const ultimaSubcategoria = subcategoriaStore.subcategorias[subcategoriaStore.subcategorias.length - 1]
+    formData.value.subcategoria_id = ultimaSubcategoria.id
+  }
+}
+
+// Función para cargar subcategorías por categoría
+const loadSubcategoriasByCategoria = async (categoriaId) => {
+  try {
+    const subcategoriasData = await subcategoriaStore.fetchSubcategoriasByCategoria(categoriaId)
+
+    subcategorias.value = subcategoriasData.map(sub => ({
+      value: sub.id,
+      label: sub.nombre,
+      categoria_id: sub.categoria_id
+    }))
+  } catch (error) {
+    console.error('Error al cargar subcategorías por categoría:', error)
+    subcategorias.value = []
   }
 }
 </script>
@@ -321,6 +438,28 @@ const onMarcaSaved = async () => {
               <i class="fas fa-plus mr-1"></i>
               Agregar Categoría
             </button>
+          </div>
+          
+          <div class="space-y-2">
+            <BaseSelect
+              v-model="formData.subcategoria_id"
+              label="Subcategoría"
+              :options="subcategoriasFiltradas"
+              :placeholder="formData.categoria_id ? 'Seleccionar subcategoría' : 'Primero selecciona una categoría'"
+              :disabled="!formData.categoria_id"
+            />
+            <button
+              type="button"
+              @click="abrirSubcategoriaModal"
+              :disabled="!formData.categoria_id"
+              class="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-md text-[#33c7d1] bg-[#33c7d1] bg-opacity-10 hover:bg-opacity-20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#33c7d1] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <i class="fas fa-plus mr-1"></i>
+              Agregar Subcategoría
+            </button>
+            <p v-if="!formData.categoria_id" class="text-sm text-gray-500">
+              Selecciona una categoría primero para poder agregar subcategorías
+            </p>
           </div>
           
           <div class="space-y-2">
@@ -395,13 +534,12 @@ const onMarcaSaved = async () => {
 
         <!-- Descripción -->
         <div class="mt-6">
-          <label class="block text-sm font-medium text-gray-700">
-            Descripción
-          </label>
-          <textarea
+          <RichTextEditor
             v-model="formData.descripcion"
-            rows="4"
-            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#33c7d1] focus:ring-[#33c7d1] sm:text-sm"
+            label="Descripción del Producto"
+            placeholder="Describe las características, beneficios y detalles del producto..."
+            help-text="Usa las herramientas de formato para hacer tu descripción más atractiva"
+            :height="250"
           />
         </div>
 
@@ -520,12 +658,19 @@ const onMarcaSaved = async () => {
       </div>
     </form>
 
-    <!-- Modales para Categorías y Marcas -->
+    <!-- Modales para Categorías, Subcategorías y Marcas -->
     <CategoriaModal
       :is-open="showCategoriaModal"
       :categoria="categoriaSeleccionada"
       @close="cerrarCategoriaModal"
       @saved="onCategoriaSaved"
+    />
+
+    <SubcategoriaModal
+      :show-modal="showSubcategoriaModal"
+      :subcategoria="subcategoriaSeleccionada"
+      @close="cerrarSubcategoriaModal"
+      @saved="onSubcategoriaSaved"
     />
 
     <MarcaModal

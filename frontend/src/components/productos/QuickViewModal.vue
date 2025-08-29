@@ -112,7 +112,7 @@
 
               <div class="description">
                 <h3>Descripción</h3>
-                <p>{{ producto.descripcion || 'Sin descripción disponible' }}</p>
+                <HtmlRenderer :content="producto.descripcion" />
               </div>
 
               <div class="product-meta">
@@ -186,12 +186,14 @@ import { useProductoStore } from '@/stores/producto'
 import { useAuthStore } from '@/stores/auth'
 import Swal from 'sweetalert2'
 import CantidadModal from './CantidadModal.vue'
+import HtmlRenderer from '@/components/common/HtmlRenderer.vue'
 
 export default {
   name: 'QuickViewModal',
   
   components: {
-    CantidadModal
+    CantidadModal,
+    HtmlRenderer
   },
 
   props: {
